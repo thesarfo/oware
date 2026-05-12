@@ -8,3 +8,12 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Tooling
+.pytest_cache/
+.hypothesis/
+.coverage
+htmlcov/
+
+# Project artifacts (checkpoints, telemetry, tensorboard, eval reports)
+artifacts/
