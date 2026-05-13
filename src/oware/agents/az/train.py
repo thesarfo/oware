@@ -35,6 +35,7 @@ class Config:
   buffer_capacity: int = 500_000
   tau_threshold: int = 15  # plies before switching to argmax
   n_selfplay_workers: int = 16
+  parallel_leaves: int = 8  # leaves selected simultaneously per MCTS round (virtual loss)
   seed: int = 42
   artifacts_dir: Path = Path("artifacts/az")
   tb_dir: Path = Path("artifacts/tb/az")
@@ -60,7 +61,7 @@ def _selfplay_worker(
       done, _ = terminal(s)
       if done:
         break
-      pi = search_with_server(s, server, cfg.selfplay_sims, add_noise=True)
+      pi = search_with_server(s, server, cfg.selfplay_sims, add_noise=True, parallel_leaves=cfg.parallel_leaves)
       if ply < cfg.tau_threshold:
         counts = pi.copy()
         counts /= counts.sum() + 1e-8
