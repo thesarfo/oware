@@ -1,4 +1,5 @@
 import type { AgentMoveMsg } from "../lib/protocol";
+import { humanPit } from "../lib/pit";
 
 interface Props {
   move: AgentMoveMsg;
@@ -9,7 +10,7 @@ export function AgentInsight({ move }: Props) {
 
   return (
     <div className="rounded-xl border border-line p-3 font-mono text-[11px] text-muted space-y-6 dark:border-dark-line dark:text-dark-muted">
-      <div className="uppercase tracking-wide">Last move · pit {move.pit + 1}</div>
+      <div className="uppercase tracking-wide">Last move · pit {humanPit(move.pit)}</div>
       {scores && (
         <div className="flex gap-1 items-end h-8">
           {scores.map((s, i) => {
