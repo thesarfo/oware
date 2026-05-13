@@ -30,6 +30,7 @@ from oware.server.protocol import (
   AgentThinking,
   ClientMove,
   ClientNewGame,
+  ClientNewMatch,
   ClientPing,
   ClientResign,
   ErrorMessage,
@@ -132,6 +133,7 @@ def create_app() -> FastAPI:
   @app.get("/stats")
   async def stats(
     scope: str = "all",
+    kind: str = "human",
     oware_client: str | None = Cookie(default=None),
   ) -> dict[str, Any]:
     import sqlite3
@@ -147,7 +149,14 @@ def create_app() -> FastAPI:
       scope_where = "1=1"
       scope_params = ()
 
-    base_where = f"ended_at IS NOT NULL AND opponent_kind = 'human' AND {scope_where}"
+    if kind == "human":
+      kind_where = "opponent_kind = 'human'"
+    elif kind == "match":
+      kind_where = "opponent_kind = 'agent'"
+    else:
+      kind_where = "1=1"
+
+    base_where = f"ended_at IS NOT NULL AND {kind_where} AND {scope_where}"
 
     conn = sqlite3.connect(str(DB_PATH))
     try:
@@ -190,7 +199,7 @@ def create_app() -> FastAPI:
       ).fetchall()
       recent = conn.execute(
         f"""
-                SELECT game_id, agent_id, winner, end_reason, total_plies,
+                SELECT game_id, agent_id, opponent_agent_id, winner, end_reason, total_plies,
                        final_store_south, final_store_north, created_at
                 FROM games
                 WHERE {base_where}
@@ -199,11 +208,89 @@ def create_app() -> FastAPI:
                 """,
         scope_params,
       ).fetchall()
+      leaderboard: list[dict] = []
+      standings: list[dict] = []
+      if kind == "match":
+        lb_rows = conn.execute(
+          f"""
+                  SELECT agent_id, opponent_agent_id,
+                         COUNT(*) AS games,
+                         SUM(CASE WHEN winner = 'south' THEN 1 ELSE 0 END) AS south_wins,
+                         SUM(CASE WHEN winner = 'north' THEN 1 ELSE 0 END) AS north_wins,
+                         SUM(CASE WHEN winner = 'draw'  THEN 1 ELSE 0 END) AS draws,
+                         COALESCE(AVG(total_plies), 0) AS avg_plies
+                  FROM games
+                  WHERE {base_where} AND opponent_agent_id IS NOT NULL
+                  GROUP BY agent_id, opponent_agent_id
+                  ORDER BY games DESC
+                  """,
+          scope_params,
+        ).fetchall()
+        leaderboard = [
+          {
+            "south": r[0],
+            "north": r[1],
+            "games": r[2],
+            "south_wins": r[3] or 0,
+            "north_wins": r[4] or 0,
+            "draws": r[5] or 0,
+            "avg_plies": round(r[6], 1),
+          }
+          for r in lb_rows
+        ]
+        # Per-agent standings: union south-side and north-side appearances
+        st_rows = conn.execute(
+          f"""
+                  SELECT agent,
+                         SUM(games) AS games,
+                         SUM(wins)  AS wins,
+                         SUM(losses) AS losses,
+                         SUM(draws) AS draws,
+                         COALESCE(AVG(avg_plies), 0) AS avg_plies
+                  FROM (
+                    SELECT agent_id AS agent,
+                           COUNT(*) AS games,
+                           SUM(CASE WHEN winner = 'south' THEN 1 ELSE 0 END) AS wins,
+                           SUM(CASE WHEN winner = 'north' THEN 1 ELSE 0 END) AS losses,
+                           SUM(CASE WHEN winner = 'draw'  THEN 1 ELSE 0 END) AS draws,
+                           COALESCE(AVG(total_plies), 0) AS avg_plies
+                    FROM games
+                    WHERE {base_where} AND opponent_agent_id IS NOT NULL
+                    GROUP BY agent_id
+                    UNION ALL
+                    SELECT opponent_agent_id AS agent,
+                           COUNT(*) AS games,
+                           SUM(CASE WHEN winner = 'north' THEN 1 ELSE 0 END) AS wins,
+                           SUM(CASE WHEN winner = 'south' THEN 1 ELSE 0 END) AS losses,
+                           SUM(CASE WHEN winner = 'draw'  THEN 1 ELSE 0 END) AS draws,
+                           COALESCE(AVG(total_plies), 0) AS avg_plies
+                    FROM games
+                    WHERE {base_where} AND opponent_agent_id IS NOT NULL
+                    GROUP BY opponent_agent_id
+                  )
+                  GROUP BY agent
+                  ORDER BY CAST(wins AS REAL) / NULLIF(games, 0) DESC, wins DESC
+                  """,
+          scope_params + scope_params,
+        ).fetchall()
+        standings = [
+          {
+            "agent": r[0],
+            "games": r[1] or 0,
+            "wins": r[2] or 0,
+            "losses": r[3] or 0,
+            "draws": r[4] or 0,
+            "win_pct": round((r[2] or 0) / r[1] * 100, 1) if r[1] else 0,
+            "avg_plies": round(r[5], 1),
+          }
+          for r in st_rows
+        ]
     finally:
       conn.close()
 
     return {
       "scope": scope,
+      "kind": kind,
       "totals": {
         "games": totals[0] or 0,
         "avg_plies": round(totals[1] or 0, 1),
@@ -226,16 +313,19 @@ def create_app() -> FastAPI:
         for r in by_agent
       ],
       "by_reason": [{"reason": r[0], "games": r[1]} for r in by_reason],
+      "leaderboard": leaderboard,
+      "standings": standings,
       "recent": [
         {
           "game_id": r[0],
           "agent_id": r[1],
-          "winner": r[2],
-          "reason": r[3],
-          "plies": r[4],
-          "south": r[5],
-          "north": r[6],
-          "created_at": r[7],
+          "opponent_agent_id": r[2],
+          "winner": r[3],
+          "reason": r[4],
+          "plies": r[5],
+          "south": r[6],
+          "north": r[7],
+          "created_at": r[8],
         }
         for r in recent
       ],
@@ -244,52 +334,74 @@ def create_app() -> FastAPI:
   @app.get("/games")
   async def games_list(
     scope: str = "mine",
+    kind: str = "all",
+    page: int = 1,
+    page_size: int = 24,
     oware_client: str | None = Cookie(default=None),
   ):
     import json as _json
     import sqlite3
 
-    if scope == "all":
-      where = "g.ended_at IS NOT NULL"
-      params: tuple = ()
-    else:
+    page = max(1, page)
+    page_size = max(1, min(100, page_size))
+    offset = (page - 1) * page_size
+
+    where_parts: list[str] = ["g.ended_at IS NOT NULL"]
+    params_list: list[Any] = []
+    if scope == "mine":
       if oware_client is None:
-        return []
-      where = "g.ended_at IS NOT NULL AND g.client_id_hash = ?"
-      params = (_hash_client(oware_client),)
+        return {"total": 0, "page": page, "page_size": page_size, "items": []}
+      where_parts.append("g.client_id_hash = ?")
+      params_list.append(_hash_client(oware_client))
+    if kind == "human":
+      where_parts.append("g.opponent_kind = 'human'")
+    elif kind == "match":
+      where_parts.append("g.opponent_kind = 'agent'")
+    where = " AND ".join(where_parts)
 
     conn = sqlite3.connect(str(DB_PATH))
     try:
+      total = conn.execute(
+        f"SELECT COUNT(*) FROM games g WHERE {where}", tuple(params_list)
+      ).fetchone()[0]
       rows = conn.execute(
         f"""
                 SELECT g.game_id, g.agent_id, g.winner, g.end_reason, g.total_plies,
                        g.final_store_south, g.final_store_north, g.created_at, g.ended_at,
+                       g.opponent_kind, g.opponent_agent_id,
                        (SELECT m.pits_after_json FROM moves m
                           WHERE m.game_id = g.game_id ORDER BY m.ply DESC LIMIT 1)
                           AS final_pits_json
                 FROM games g
                 WHERE {where}
                 ORDER BY g.ended_at DESC
-                LIMIT 100
+                LIMIT ? OFFSET ?
                 """,
-        params,
+        tuple(params_list) + (page_size, offset),
       ).fetchall()
     finally:
       conn.close()
-    return [
-      {
-        "game_id": r[0],
-        "agent_id": r[1],
-        "winner": r[2],
-        "reason": r[3],
-        "plies": r[4],
-        "final_stores": {"south": r[5], "north": r[6]},
-        "created_at": r[7],
-        "ended_at": r[8],
-        "final_pits": _json.loads(r[9]) if r[9] else [0] * 12,
-      }
-      for r in rows
-    ]
+    return {
+      "total": total,
+      "page": page,
+      "page_size": page_size,
+      "items": [
+        {
+          "game_id": r[0],
+          "agent_id": r[1],
+          "winner": r[2],
+          "reason": r[3],
+          "plies": r[4],
+          "final_stores": {"south": r[5], "north": r[6]},
+          "created_at": r[7],
+          "ended_at": r[8],
+          "opponent_kind": r[9],
+          "opponent_agent_id": r[10],
+          "final_pits": _json.loads(r[11]) if r[11] else [0] * 12,
+        }
+        for r in rows
+      ],
+    }
 
   @app.get("/games/{game_id}")
   async def game_detail(
@@ -317,7 +429,8 @@ def create_app() -> FastAPI:
         f"""
                 SELECT agent_id, winner, end_reason, total_plies,
                        final_store_south, final_store_north,
-                       created_at, ended_at, human_plays, initial_state_json
+                       created_at, ended_at, human_plays, initial_state_json,
+                       opponent_kind, opponent_agent_id
                 FROM games
                 WHERE {where_clause}
                 """,
@@ -350,6 +463,8 @@ def create_app() -> FastAPI:
       "ended_at": meta[7],
       "human_plays": meta[8],
       "initial_state": _json.loads(meta[9]),
+      "opponent_kind": meta[10],
+      "opponent_agent_id": meta[11],
       "moves": [
         {
           "ply": m[0],
@@ -376,7 +491,7 @@ def create_app() -> FastAPI:
         max_age=60 * 60 * 24 * 365,
         samesite="lax",
       )
-    return [
+    agents_out = [
       {
         "id": a.id,
         "name": a.name,
@@ -386,6 +501,8 @@ def create_app() -> FastAPI:
       }
       for a in list_agents()
     ]
+    agents_out.sort(key=lambda a: a["est_elo"] if a["est_elo"] is not None else -1, reverse=True)
+    return agents_out
 
   @app.websocket("/play")
   async def play(ws: WebSocket) -> None:
@@ -429,6 +546,15 @@ async def _dispatch(
       await _handle_new_game(
         ws,
         ClientNewGame.model_validate(raw),
+        owner,
+        sessions,
+        telemetry,
+        client_hash,
+      )
+    elif msg_type == "new_match":
+      await _handle_new_match(
+        ws,
+        ClientNewMatch.model_validate(raw),
         owner,
         sessions,
         telemetry,
@@ -500,6 +626,71 @@ async def _handle_new_game(
 
   if session.state.to_move != human_side:
     await _play_agent_turns(ws, session, telemetry)
+
+
+async def _handle_new_match(
+  ws: WebSocket,
+  msg: ClientNewMatch,
+  owner: int,
+  sessions: SessionStore,
+  telemetry: Telemetry,
+  client_hash: str | None,
+) -> None:
+  try:
+    south_agent: Agent = get_agent(msg.south_agent_id, seed=msg.seed)
+  except KeyError:
+    await ws.send_json(
+      ErrorMessage(
+        code="unknown_agent",
+        message=f"no such agent: {msg.south_agent_id}",
+      ).model_dump()
+    )
+    return
+  try:
+    north_agent: Agent = get_agent(
+      msg.north_agent_id,
+      seed=(msg.seed + 1) if msg.seed is not None else None,
+    )
+  except KeyError:
+    await ws.send_json(
+      ErrorMessage(
+        code="unknown_agent",
+        message=f"no such agent: {msg.north_agent_id}",
+      ).model_dump()
+    )
+    return
+
+  session = sessions.create(
+    owner=owner,
+    agent=south_agent,
+    north_agent=north_agent,
+    human_side=None,
+    state=initial_state(),
+    seed=msg.seed,
+    client_id_hash=client_hash,
+    step_delay_ms=msg.step_delay_ms,
+  )
+  telemetry.record_game_start(
+    game_id=session.game_id,
+    agent_id=south_agent.info.id,
+    opponent_kind="agent",
+    opponent_agent_id=north_agent.info.id,
+    human_plays=None,
+    client_id_hash=client_hash,
+    seed=msg.seed,
+    initial_state=session.state,
+  )
+
+  await ws.send_json(
+    GameStarted(
+      game_id=session.game_id,
+      agent=AgentBrief(id=south_agent.info.id, name=south_agent.info.name),
+      north_agent=AgentBrief(id=north_agent.info.id, name=north_agent.info.name),
+      state=_state_message(session),
+    ).model_dump()
+  )
+
+  await _play_agent_turns(ws, session, telemetry)
 
 
 async def _handle_move(
@@ -595,12 +786,18 @@ async def _handle_resign(
 async def _play_agent_turns(
   ws: WebSocket, session: GameSession, telemetry: Telemetry
 ) -> None:
-  while not session.ended and session.state.to_move != session.human_side:
+  is_match = session.human_side is None
+  while not session.ended and (
+    is_match or session.state.to_move != session.human_side
+  ):
+    mover_side = session.state.to_move
+    agent_for_turn = session.agent_for_side(mover_side)
+
     await ws.send_json(
       AgentThinking(game_id=session.game_id, since=int(time.time() * 1000)).model_dump()
     )
     t0 = time.perf_counter()
-    action, extras = await asyncio.to_thread(session.agent.choose_move, session.state)
+    action, extras = await asyncio.to_thread(agent_for_turn.choose_move, session.state)
     thought_ms = int((time.perf_counter() - t0) * 1000)
 
     try:
@@ -614,20 +811,19 @@ async def _play_agent_turns(
       return
 
     session.state = next_state
-    agent_side = 1 - session.human_side
     session.last_move_pit = action
-    session.last_move_by = agent_side
+    session.last_move_by = mover_side
     session.last_move_captured = captured
     session.moves.append({
       "ply": next_state.ply - 1,
-      "by": _side_name(agent_side),
+      "by": _side_name(mover_side),
       "pit": action,
       "captured": captured,
     })
     telemetry.record_move(
       game_id=session.game_id,
       ply=next_state.ply - 1,
-      side=_side_name(agent_side),
+      side=_side_name(mover_side),
       actor="agent",
       action=action,
       captured=captured,
@@ -648,6 +844,9 @@ async def _play_agent_turns(
 
     if await _maybe_finish(ws, session, telemetry):
       return
+
+    if is_match and session.step_delay_ms > 0:
+      await asyncio.sleep(session.step_delay_ms / 1000)
 
 
 async def _maybe_finish(
