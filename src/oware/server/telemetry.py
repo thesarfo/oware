@@ -118,20 +118,22 @@ class Telemetry:
     client_id_hash: str | None,
     seed: int | None,
     initial_state: State,
+    opponent_agent_id: str | None = None,
   ) -> None:
     self._queue.put_nowait(
       (
         """
                 INSERT INTO games
-                    (game_id, created_at, agent_id, opponent_kind, human_plays,
-                     client_id_hash, seed, initial_state_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (game_id, created_at, agent_id, opponent_kind, opponent_agent_id,
+                     human_plays, client_id_hash, seed, initial_state_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
         (
           game_id,
           _now_ms(),
           agent_id,
           opponent_kind,
+          opponent_agent_id,
           human_plays,
           client_id_hash,
           seed,
