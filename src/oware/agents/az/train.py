@@ -11,9 +11,10 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
+from tqdm import tqdm
 
 from oware.agents.az.buffer import SelfPlayBuffer
-from oware.agents.az.mcts import search
+from oware.agents.az.mcts import InferenceServer, search_with_server
 from oware.agents.az.model import AZNetwork
 from oware.engine import NORTH, SOUTH, encode, step, terminal
 from oware.training.logging import RunLogger
@@ -33,18 +34,17 @@ class Config:
   warmup_samples: int = 1_000
   buffer_capacity: int = 500_000
   tau_threshold: int = 15  # plies before switching to argmax
+  n_selfplay_workers: int = 16
   seed: int = 42
   artifacts_dir: Path = Path("artifacts/az")
   tb_dir: Path = Path("artifacts/tb/az")
 
 
 def _selfplay_worker(
-  net: AZNetwork,
+  server: InferenceServer,
   buf: SelfPlayBuffer,
   cfg: Config,
-  device: torch.device,
   stop: threading.Event,
-  net_lock: threading.Lock,
 ) -> None:
   game = 0
   while not stop.is_set():
@@ -60,8 +60,7 @@ def _selfplay_worker(
       done, _ = terminal(s)
       if done:
         break
-      with net_lock:
-        pi = search(s, net, device, cfg.selfplay_sims, add_noise=True)
+      pi = search_with_server(s, server, cfg.selfplay_sims, add_noise=True)
       if ply < cfg.tau_threshold:
         counts = pi.copy()
         counts /= counts.sum() + 1e-8
@@ -88,6 +87,7 @@ def _selfplay_worker(
       dtype=np.float32,
     )
     buf.push_game(obs_arr, pi_arr, z_arr)
+    tqdm.write(f"[selfplay] game {game} done, buf={len(buf)}")
 
 
 def _eval_vs_net(
@@ -98,6 +98,8 @@ def _eval_vs_net(
   device: torch.device,
 ) -> float:
   wins = 0
+  cand_server = InferenceServer(candidate, device)
+  best_server = InferenceServer(best, device)
   from oware.engine import initial_state
 
   for i in range(games):
@@ -107,12 +109,14 @@ def _eval_vs_net(
       done, _ = terminal(s)
       if done:
         break
-      net = candidate if s.to_move == cand_side else best
-      pi = search(s, net, device, sims, add_noise=False)
+      server = cand_server if s.to_move == cand_side else best_server
+      pi = search_with_server(s, server, sims, add_noise=False)
       s, _ = step(s, int(np.argmax(pi)))
     done, winner = terminal(s)
     if done and winner == cand_side:
       wins += 1
+  cand_server.stop()
+  best_server.stop()
   return wins / games
 
 
@@ -129,6 +133,10 @@ def train(cfg: Config | None = None) -> None:
   random.seed(cfg.seed)
 
   device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  print(f"[az] device={device}")
+  print(f"[az] config={dataclasses.asdict(cfg)}")
+  logger.text("meta/config", str(dataclasses.asdict(cfg)), 0)
+
   net = AZNetwork().to(device)
   best_net = copy.deepcopy(net)
   best_net.eval()
@@ -137,21 +145,26 @@ def train(cfg: Config | None = None) -> None:
   )
 
   buf = SelfPlayBuffer(cfg.buffer_capacity)
-  net_lock = threading.Lock()
   stop = threading.Event()
+  server = InferenceServer(net, device)
 
-  sp_thread = threading.Thread(
-    target=_selfplay_worker,
-    args=(net, buf, cfg, device, stop, net_lock),
-    daemon=True,
-  )
-  sp_thread.start()
+  sp_threads = [
+    threading.Thread(
+      target=_selfplay_worker,
+      args=(server, buf, cfg, stop),
+      daemon=True,
+    )
+    for _ in range(cfg.n_selfplay_workers)
+  ]
+  for t in sp_threads:
+    t.start()
 
   try:
-    from tqdm import tqdm
-
     pbar = tqdm(
-      total=cfg.train_steps, desc="az", unit="step", disable=not sys.stdout.isatty()
+      total=cfg.train_steps,
+      desc=f"az [{device}]",
+      unit="step",
+      disable=not sys.stdout.isatty(),
     )
   except ImportError:
     pbar = None
@@ -179,8 +192,7 @@ def train(cfg: Config | None = None) -> None:
     z_t = torch.as_tensor(z, device=device)
 
     mask = (pi_t > 0).float()
-    with net_lock:
-      log_probs, value = net(obs_t, mask)
+    log_probs, value = net(obs_t, mask)
 
     policy_loss = -(pi_t * log_probs).sum(dim=-1).mean()
     value_loss = F.mse_loss(value, z_t)
@@ -190,9 +202,16 @@ def train(cfg: Config | None = None) -> None:
     loss.backward()
     torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)
     optimizer.step()
+    server.update_net(net)
 
     if pbar:
       pbar.update(1)
+      pbar.set_postfix(
+        loss=f"{loss.item():.3f}",
+        pl=f"{policy_loss.item():.3f}",
+        vl=f"{value_loss.item():.3f}",
+        buf=len(buf),
+      )
 
     if train_step % 100 == 0:
       logger.scalars(
@@ -232,6 +251,7 @@ def train(cfg: Config | None = None) -> None:
           tqdm.write(f"  → promoted at step {train_step}")
 
   stop.set()
+  server.stop()
   if pbar:
     pbar.close()
   logger.close()

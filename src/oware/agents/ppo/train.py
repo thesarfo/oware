@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn.functional as F
+from tqdm import tqdm
 
 from oware.agents.dqn.env import OwareEnv
 from oware.agents.minimax import MinimaxAgent
@@ -202,6 +203,10 @@ def train(cfg: Config | None = None) -> None:
   random.seed(cfg.seed)
 
   device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  print(f"[ppo] device={device}")
+  print(f"[ppo] config={dataclasses.asdict(cfg)}")
+  logger.text("meta/config", str(dataclasses.asdict(cfg)), 0)
+
   net = PPONetwork().to(device)
   optimizer = torch.optim.Adam(net.parameters(), lr=cfg.lr)
 
@@ -220,10 +225,11 @@ def train(cfg: Config | None = None) -> None:
   n_updates = cfg.total_steps // (cfg.n_steps * cfg.n_envs)
 
   try:
-    from tqdm import tqdm
-
     pbar = tqdm(
-      total=cfg.total_steps, desc="ppo", unit="step", disable=not sys.stdout.isatty()
+      total=cfg.total_steps,
+      desc=f"ppo [{device}]",
+      unit="step",
+      disable=not sys.stdout.isatty(),
     )
   except ImportError:
     pbar = None
@@ -291,6 +297,14 @@ def train(cfg: Config | None = None) -> None:
       },
       global_step,
     )
+
+    if pbar:
+      pbar.set_postfix(
+        loss=f"{loss.item():.3f}",
+        pg=f"{pg_loss.item():.3f}",
+        v=f"{v_loss.item():.3f}",
+        ent=f"{entropy.mean().item():.3f}",
+      )
 
     if global_step % cfg.eval_every == 0:
       wr_d2 = _eval_winrate(net, d2, cfg.eval_games, device)
