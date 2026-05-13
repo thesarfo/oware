@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BoardView } from "../components/BoardView";
 import { Footer } from "../components/Footer";
 import { MuteToggle } from "../components/MuteToggle";
+import { PageHeader } from "../components/PageHeader";
 import { fetchGame, type GameDetail, type GameMove, type Scope } from "../lib/games";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { useReplay } from "../hooks/useReplay";
@@ -82,6 +83,9 @@ export function ReplayPage({ gameId, scope }: Props) {
     );
   }
 
+  const southLabel = game.opponent_kind === "agent" ? game.agent_id : "you";
+  const northLabel = game.opponent_kind === "agent" ? (game.opponent_agent_id ?? game.agent_id) : game.agent_id;
+
   const currentMove: GameMove | null =
     replay.ply > 0 ? game.moves[replay.ply - 1] ?? null : null;
 
@@ -101,20 +105,14 @@ export function ReplayPage({ gameId, scope }: Props) {
 
   return (
     <div className="min-h-screen bg-white text-ink dark:bg-dark-bg dark:text-dark-ink">
-      <header className="flex items-center justify-between px-6 py-4">
-        <button
-          onClick={() => navigate(`/games?scope=${scope}`)}
-          className="rounded-lg border border-line px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-ink hover:text-ink dark:border-dark-line dark:text-dark-muted dark:hover:border-dark-muted dark:hover:text-dark-ink"
-        >
-          ← all games
-        </button>
-        <h1 className="font-mono text-base font-semibold uppercase tracking-widest">
-          Replay · {game.agent_id}
-        </h1>
-        <div className="flex items-center gap-2">
-          <MuteToggle />
-        </div>
-      </header>
+      <PageHeader
+        left={<button onClick={() => navigate(`/games?scope=${scope}`)} className="rounded-lg border border-line px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-ink hover:text-ink dark:border-dark-line dark:text-dark-muted dark:hover:border-dark-muted dark:hover:text-dark-ink">← all games</button>}
+        right={<MuteToggle />}
+      >
+        {game.opponent_kind === "agent"
+          ? `${game.agent_id} vs ${game.opponent_agent_id ?? "?"}`
+          : `Replay · ${game.agent_id}`}
+      </PageHeader>
 
       <div className="grid grid-cols-1 gap-4 px-6 pb-8 lg:grid-cols-[20rem_1fr_20rem]">
         {/* Left: outcome + per-ply detail */}
@@ -124,11 +122,17 @@ export function ReplayPage({ gameId, scope }: Props) {
             <div className="text-base font-medium">
               {game.winner === "draw"
                 ? "draw"
-                : game.winner === "south"
-                  ? "you win"
-                  : game.winner === "north"
-                    ? "you lose"
-                    : "—"}
+                : game.opponent_kind === "agent"
+                  ? game.winner === "south"
+                    ? `${game.agent_id} wins`
+                    : game.winner === "north"
+                      ? `${game.opponent_agent_id ?? northLabel} wins`
+                      : "—"
+                  : game.winner === "south"
+                    ? "you win"
+                    : game.winner === "north"
+                      ? "you lose"
+                      : "—"}
             </div>
             <div className="mt-0.5 text-muted dark:text-dark-muted">
               {game.final_stores.south}–{game.final_stores.north} · {game.reason}
@@ -146,7 +150,7 @@ export function ReplayPage({ gameId, scope }: Props) {
             </div>
             <div className="mt-1 text-muted dark:text-dark-muted">
               {currentMove
-                ? `${currentMove.side === "south" ? "you" : game.agent_id} · pit ${humanPit(currentMove.action)}${currentMove.captured ? ` · +${currentMove.captured}` : ""}`
+                ? `${currentMove.side === "south" ? southLabel : northLabel} · pit ${humanPit(currentMove.action)}${currentMove.captured ? ` · +${currentMove.captured}` : ""}`
                 : "start"}
             </div>
           </div>
@@ -154,7 +158,8 @@ export function ReplayPage({ gameId, scope }: Props) {
           <AnalysisCard
             currentMove={currentMove}
             upcomingMove={upcomingMove}
-            agentName={game.agent_id}
+            southLabel={southLabel}
+            northLabel={northLabel}
           />
         </aside>
 
@@ -172,7 +177,7 @@ export function ReplayPage({ gameId, scope }: Props) {
           <div className="flex min-h-[2.5rem] w-full max-w-[600px] items-center justify-center">
             {hintMismatch && currentMove && (
               <div className="rounded-xl border border-line bg-canvas px-4 py-2 font-mono text-[11px] dark:border-dark-line dark:bg-dark-bg">
-                <span className="text-muted dark:text-dark-muted">you played </span>
+                <span className="text-muted dark:text-dark-muted">{southLabel} played </span>
                 <span className="text-ink dark:text-dark-ink">pit {humanPit(currentMove.action)}</span>
                 <span className="mx-2 text-muted dark:text-dark-muted">·</span>
                 <span className="text-muted dark:text-dark-muted">az would have played </span>
@@ -244,7 +249,7 @@ export function ReplayPage({ gameId, scope }: Props) {
                     idx={idx}
                     active={replay.ply === idx}
                     onClick={() => replay.setPly(idx)}
-                    label={`${m.side === "south" ? "you" : "ai"} · pit ${humanPit(m.action)}`}
+                    label={`${m.side === "south" ? southLabel : northLabel} · pit ${humanPit(m.action)}`}
                     capture={m.captured ? `+${m.captured}` : ""}
                     mismatch={mismatch}
                   />
@@ -323,13 +328,14 @@ function MoveListItem({
 function AnalysisCard({
   currentMove,
   upcomingMove,
-  agentName,
+  southLabel,
+  northLabel,
 }: {
   currentMove: GameMove | null;
   upcomingMove: GameMove | null;
-  agentName: string;
+  southLabel: string;
+  northLabel: string;
 }) {
-  // Compute aggregate accuracy across the human's moves so far.
   if (!currentMove && !upcomingMove) {
     return (
       <div className="rounded-xl border border-line p-3 font-mono text-[11px] text-muted dark:border-dark-line dark:text-dark-muted">
@@ -345,7 +351,7 @@ function AnalysisCard({
       {currentMove && currentMove.side === "south" && (
         <div className="mt-2 space-y-1">
           <div className="flex justify-between">
-            <span className="text-muted dark:text-dark-muted">your move</span>
+            <span className="text-muted dark:text-dark-muted">{southLabel}'s move</span>
             <span>pit {humanPit(currentMove.action)}</span>
           </div>
           <div className="flex justify-between">
@@ -362,7 +368,7 @@ function AnalysisCard({
       )}
       {currentMove && currentMove.side === "north" && (
         <div className="mt-2 text-muted dark:text-dark-muted">
-          {agentName}'s move — pit {humanPit(currentMove.action)}
+          {northLabel}'s move — pit {humanPit(currentMove.action)}
         </div>
       )}
       {upcomingMove && upcomingMove.side === "south" && upcomingMove.az_hint !== null && (

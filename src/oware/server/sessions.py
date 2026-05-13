@@ -9,16 +9,24 @@ from oware.engine import State
 @dataclass
 class GameSession:
   game_id: str
-  agent: Agent
-  human_side: int  # 0=south, 1=north
+  agent: Agent  # for single-player games: the AI. for matches: the south agent.
+  human_side: int | None  # 0=south, 1=north, None=AI-vs-AI match
   state: State
   seed: int | None
   client_id_hash: str | None
+  north_agent: Agent | None = None  # set only for AI-vs-AI matches
+  step_delay_ms: int = 0
   ended: bool = False
   last_move_pit: int | None = None
   last_move_by: int | None = None
   last_move_captured: int = 0
   moves: list[dict[str, Any]] = field(default_factory=list)
+
+  def agent_for_side(self, side: int) -> Agent:
+    """For matches: south = .agent, north = .north_agent. For single-player: the AI."""
+    if self.north_agent is None:
+      return self.agent
+    return self.agent if side == 0 else self.north_agent
 
 
 class SessionStore:
@@ -38,10 +46,12 @@ class SessionStore:
     *,
     owner: int,
     agent: Agent,
-    human_side: int,
+    human_side: int | None,
     state: State,
     seed: int | None,
     client_id_hash: str | None,
+    north_agent: Agent | None = None,
+    step_delay_ms: int = 0,
   ) -> GameSession:
     if len(self._games) >= self._max_games:
       self._evict_one_ended()
@@ -55,6 +65,8 @@ class SessionStore:
       state=state,
       seed=seed,
       client_id_hash=client_id_hash,
+      north_agent=north_agent,
+      step_delay_ms=step_delay_ms,
     )
     self._games[game_id] = session
     self._owners[game_id] = owner
