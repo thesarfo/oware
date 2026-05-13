@@ -78,8 +78,16 @@ class Telemetry:
     self._conn.execute("PRAGMA journal_mode=WAL")
     self._conn.execute("PRAGMA synchronous=NORMAL")
     self._conn.executescript(SCHEMA)
+    self._ensure_column("moves", "az_hint", "INTEGER")
     self._queue: asyncio.Queue[tuple[str, tuple] | None] = asyncio.Queue()
     self._worker: asyncio.Task | None = None
+
+  def _ensure_column(self, table: str, name: str, decl: str) -> None:
+    existing = {
+      row[1] for row in self._conn.execute(f"PRAGMA table_info({table})").fetchall()
+    }
+    if name not in existing:
+      self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
   async def start(self) -> None:
     if self._worker is None:
@@ -202,6 +210,15 @@ class Telemetry:
         ),
       )
     )
+
+  def record_hints(self, *, game_id: str, hints: list[tuple[int, int]]) -> None:
+    for ply, action in hints:
+      self._queue.put_nowait(
+        (
+          "UPDATE moves SET az_hint = ? WHERE game_id = ? AND ply = ?",
+          (action, game_id, ply),
+        )
+      )
 
 
 @asynccontextmanager

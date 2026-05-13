@@ -1,4 +1,5 @@
 import type { MoveEntry } from "../lib/protocol";
+import { humanPit } from "../lib/pit";
 
 interface Props {
   history: MoveEntry[];
@@ -41,12 +42,12 @@ export function AnalysisPane({ history, humanSide }: Props) {
               <span className={isPlayer ? "text-ink dark:text-dark-ink font-medium" : "text-muted dark:text-dark-muted"}>
                 {label(m.by)}
               </span>
-              <span>{m.pit + 1}</span>
+              <span>{humanPit(m.pit)}</span>
               <span className={m.captured > 0 ? "text-ink dark:text-dark-ink" : "text-muted dark:text-dark-muted"}>
                 {m.captured > 0 ? `+${m.captured}` : "—"}
               </span>
               <span className={azDiffers ? "text-muted dark:text-dark-muted" : "invisible"}>
-                {azDiffers ? `→ ${m.az_hint! + 1}` : "·"}
+                {azDiffers ? `→ ${humanPit(m.az_hint)}` : "·"}
               </span>
             </div>
           );
