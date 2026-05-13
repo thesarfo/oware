@@ -36,9 +36,22 @@ export function AgentPicker({ onStart }: Props) {
   const resolvedId =
     selectedFamily === "minimax" ? minimaxDepth : familyAgent(selectedFamily)?.id ?? "";
 
+  const hasElo = agents.some((a) => a.est_elo !== null);
+  const eloRange = hasElo
+    ? { min: Math.min(...agents.filter(a => a.est_elo !== null).map(a => a.est_elo!)),
+        max: Math.max(...agents.filter(a => a.est_elo !== null).map(a => a.est_elo!)) }
+    : null;
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="font-mono text-xs uppercase tracking-wide text-muted dark:text-dark-muted">Opponent</div>
+      <div className="flex items-baseline justify-between">
+        <div className="font-mono text-xs uppercase tracking-wide text-muted dark:text-dark-muted">Opponent</div>
+        {eloRange && (
+          <div className="font-mono text-[10px] text-muted dark:text-dark-muted">
+            {eloRange.min} – {eloRange.max} elo · weak → strong
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-col gap-2">
         {families.map((family) => {
@@ -54,9 +67,16 @@ export function AgentPicker({ onStart }: Props) {
                   : "border-line text-ink hover:border-ink dark:border-dark-line dark:text-dark-ink dark:hover:border-dark-muted"
               }`}
             >
-              <span className="text-sm font-semibold">
-                {family === "minimax" ? "Minimax" : rep.name}
-              </span>
+              <div className="flex w-full items-baseline justify-between">
+                <span className="text-sm font-semibold">
+                  {family === "minimax" ? "Minimax" : rep.name}
+                </span>
+                {rep.est_elo !== null && (
+                  <span className={`font-mono text-[11px] tabular-nums ${selected ? "text-white/70 dark:text-dark-bg/60" : "text-muted dark:text-dark-muted"}`}>
+                    {rep.est_elo}
+                  </span>
+                )}
+              </div>
               <span className={`text-[11px] ${selected ? "text-white/70 dark:text-dark-bg/60" : "text-muted dark:text-dark-muted"}`}>
                 {rep.description}
               </span>
@@ -67,19 +87,25 @@ export function AgentPicker({ onStart }: Props) {
 
       {selectedFamily === "minimax" && (
         <div className="flex gap-1 rounded-xl border border-line p-1 dark:border-dark-line">
-          {MINIMAX_DEPTHS.map(({ label, id }) => (
-            <button
-              key={id}
-              onClick={() => setMinimaxDepth(id)}
-              className={`flex-1 rounded-lg py-1.5 font-mono text-xs transition-colors ${
-                minimaxDepth === id
-                  ? "bg-ink text-white dark:bg-dark-ink dark:text-dark-bg"
-                  : "text-muted hover:text-ink dark:text-dark-muted dark:hover:text-dark-ink"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+          {MINIMAX_DEPTHS.map(({ label, id }) => {
+            const agent = agents.find((a) => a.id === id);
+            return (
+              <button
+                key={id}
+                onClick={() => setMinimaxDepth(id)}
+                className={`flex flex-1 flex-col items-center rounded-lg py-1.5 font-mono text-xs transition-colors ${
+                  minimaxDepth === id
+                    ? "bg-ink text-white dark:bg-dark-ink dark:text-dark-bg"
+                    : "text-muted hover:text-ink dark:text-dark-muted dark:hover:text-dark-ink"
+                }`}
+              >
+                <span>{label}</span>
+                {agent?.est_elo !== null && agent?.est_elo !== undefined && (
+                  <span className="text-[9px] opacity-70">{agent.est_elo}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 

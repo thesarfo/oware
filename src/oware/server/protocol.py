@@ -13,6 +13,14 @@ class ClientNewGame(BaseModel):
   seed: int | None = None
 
 
+class ClientNewMatch(BaseModel):
+  type: Literal["new_match"]
+  south_agent_id: str
+  north_agent_id: str
+  seed: int | None = None
+  step_delay_ms: int = Field(default=600, ge=0, le=5000)
+
+
 class ClientMove(BaseModel):
   type: Literal["move"]
   game_id: str
@@ -29,7 +37,9 @@ class ClientPing(BaseModel):
   t: int
 
 
-ClientMessage = ClientNewGame | ClientMove | ClientResign | ClientPing
+ClientMessage = (
+  ClientNewGame | ClientNewMatch | ClientMove | ClientResign | ClientPing
+)
 
 
 class Stores(BaseModel):
@@ -64,6 +74,7 @@ class GameStarted(BaseModel):
   game_id: str
   agent: AgentBrief
   state: GameState
+  north_agent: AgentBrief | None = None  # set on AI-vs-AI matches
 
 
 class AgentThinking(BaseModel):
