@@ -7,12 +7,19 @@ export interface GameView {
   conn: ConnState;
   state: GameState | null;
   agent: { id: string; name: string } | null;
+  northAgent: { id: string; name: string } | null;
   thinking: boolean;
   lastAgentMove: AgentMoveMsg | null;
   result: GameOver | null;
   analysing: boolean;
   error: string | null;
   newGame: (agentId: string, humanPlays: "south" | "north", seed?: number) => void;
+  newMatch: (
+    southAgentId: string,
+    northAgentId: string,
+    stepDelayMs?: number,
+    seed?: number,
+  ) => void;
   sendMove: (pit: number) => void;
   resign: () => void;
 }
@@ -27,6 +34,7 @@ export function useGame(): GameView {
   const [conn, setConn] = useState<ConnState>("connecting");
   const [state, setState] = useState<GameState | null>(null);
   const [agent, setAgent] = useState<{ id: string; name: string } | null>(null);
+  const [northAgent, setNorthAgent] = useState<{ id: string; name: string } | null>(null);
   const [thinking, setThinking] = useState(false);
   const [lastAgentMove, setLastAgentMove] = useState<AgentMoveMsg | null>(null);
   const [result, setResult] = useState<GameOver | null>(null);
@@ -44,6 +52,7 @@ export function useGame(): GameView {
       switch (msg.type) {
         case "game_started":
           setAgent(msg.agent);
+          setNorthAgent(msg.north_agent ?? null);
           setState(msg.state);
           setResult(null);
           setLastAgentMove(null);
@@ -92,7 +101,30 @@ export function useGame(): GameView {
       setResult(null);
       setAnalysing(false);
       setError(null);
+      setNorthAgent(null);
       send({ type: "new_game", agent_id: agentId, human_plays: humanPlays, seed });
+    },
+    [send],
+  );
+
+  const newMatch = useCallback(
+    (
+      southAgentId: string,
+      northAgentId: string,
+      stepDelayMs = 600,
+      seed?: number,
+    ) => {
+      setState(null);
+      setResult(null);
+      setAnalysing(false);
+      setError(null);
+      send({
+        type: "new_match",
+        south_agent_id: southAgentId,
+        north_agent_id: northAgentId,
+        step_delay_ms: stepDelayMs,
+        seed,
+      });
     },
     [send],
   );
@@ -110,5 +142,19 @@ export function useGame(): GameView {
     send({ type: "resign", game_id: state.game_id });
   }, [send, state]);
 
-  return { conn, state, agent, thinking, lastAgentMove, result, analysing, error, newGame, sendMove, resign };
+  return {
+    conn,
+    state,
+    agent,
+    northAgent,
+    thinking,
+    lastAgentMove,
+    result,
+    analysing,
+    error,
+    newGame,
+    newMatch,
+    sendMove,
+    resign,
+  };
 }

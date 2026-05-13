@@ -34,6 +34,7 @@ export interface GameStarted {
   game_id: string;
   agent: AgentBrief;
   state: GameState;
+  north_agent?: AgentBrief | null;
 }
 
 export interface AgentThinking {

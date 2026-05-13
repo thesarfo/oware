@@ -1,6 +1,8 @@
 export interface GameListEntry {
   game_id: string;
   agent_id: string;
+  opponent_kind: "human" | "agent";
+  opponent_agent_id: string | null;
   winner: "south" | "north" | "draw" | null;
   reason: string;
   plies: number;
@@ -26,13 +28,15 @@ export interface GameMove {
 export interface GameDetail {
   game_id: string;
   agent_id: string;
+  opponent_kind: "human" | "agent";
+  opponent_agent_id: string | null;
   winner: "south" | "north" | "draw" | null;
   reason: string;
   plies: number;
   final_stores: { south: number; north: number };
   created_at: number;
   ended_at: number | null;
-  human_plays: "south" | "north";
+  human_plays: "south" | "north" | null;
   initial_state: { pits: number[]; stores: [number, number]; to_move: number; ply: number };
   moves: GameMove[];
 }
@@ -67,10 +71,18 @@ export function buildFrames(game: GameDetail): Frame[] {
 }
 
 export type Scope = "mine" | "all";
+export type Kind = "human" | "match" | "all";
 
-export async function fetchGames(scope: Scope = "mine"): Promise<GameListEntry[]> {
-  const r = await fetch(`/games?scope=${scope}`, { credentials: "include" });
-  if (!r.ok) return [];
+export interface GamesResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  items: GameListEntry[];
+}
+
+export async function fetchGames(scope: Scope = "mine", kind: Kind = "all", page = 1): Promise<GamesResponse> {
+  const r = await fetch(`/games?scope=${scope}&kind=${kind}&page=${page}&page_size=24`, { credentials: "include" });
+  if (!r.ok) return { total: 0, page, page_size: 24, items: [] };
   return r.json();
 }
 
@@ -102,6 +114,7 @@ export interface StatsByReason {
 export interface RecentStatsGame {
   game_id: string;
   agent_id: string;
+  opponent_agent_id: string | null;
   winner: "south" | "north" | "draw" | null;
   reason: string;
   plies: number;
@@ -110,8 +123,29 @@ export interface RecentStatsGame {
   created_at: number;
 }
 
+export interface LeaderboardEntry {
+  south: string;
+  north: string;
+  games: number;
+  south_wins: number;
+  north_wins: number;
+  draws: number;
+  avg_plies: number;
+}
+
+export interface StandingsEntry {
+  agent: string;
+  games: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  win_pct: number;
+  avg_plies: number;
+}
+
 export interface Stats {
   scope: Scope;
+  kind: Kind;
   totals: {
     games: number;
     avg_plies: number;
@@ -122,11 +156,17 @@ export interface Stats {
   };
   by_agent: StatsByAgent[];
   by_reason: StatsByReason[];
+  leaderboard: LeaderboardEntry[];
+  standings: StandingsEntry[];
   recent: RecentStatsGame[];
 }
 
-export async function fetchStats(scope: Scope = "all"): Promise<Stats | null> {
-  const r = await fetch(`/stats?scope=${scope}`, { credentials: "include" });
+export async function fetchStats(scope: Scope = "all", kind: Kind = "human"): Promise<Stats | null> {
+  const r = await fetch(`/stats?scope=${scope}&kind=${kind}`, { credentials: "include" });
   if (!r.ok) return null;
-  return r.json();
+  const data = await r.json();
+  // guard against older server responses missing these fields
+  data.standings = data.standings ?? [];
+  data.leaderboard = data.leaderboard ?? [];
+  return data;
 }
