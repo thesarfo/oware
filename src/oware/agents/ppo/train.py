@@ -45,7 +45,8 @@ class Config:
   pool_capacity: int = 10
   pool_latest_p: float = 0.6
   pool_random_p: float = 0.3          # remainder (0.1) is Minimax-d4
-  eval_every: int = 50_000
+  eval_every_rollouts: int = 25      # roughly one eval per 50k env steps with defaults
+  save_every_rollouts: int = 5       # cheap insurance: drop a latest.pt frequently
   eval_games: int = 100
   seed: int = 42
   artifacts_dir: Path = Path("artifacts/ppo")
@@ -360,7 +361,10 @@ def train(cfg: Config | None = None) -> None:
     if rollout_n % cfg.snapshot_every_rollouts == 0:
       pool.add(net)
 
-    if global_step % cfg.eval_every == 0 or global_step >= cfg.total_steps:
+    if rollout_n % cfg.save_every_rollouts == 0:
+      _save_ckpt(net, cfg.artifacts_dir / "latest.pt", global_step, cfg)
+
+    if rollout_n % cfg.eval_every_rollouts == 0:
       wr_random = _eval_winrate(net, random_opp, cfg.eval_games, device)
       wr_d4 = _eval_winrate(net, d4, cfg.eval_games, device)
       logger.scalars(
@@ -372,8 +376,8 @@ def train(cfg: Config | None = None) -> None:
         global_step,
       )
       tqdm.write(
-        f"step {global_step}: vs_random={wr_random:.1%} vs_d4={wr_d4:.1%} "
-        f"ent={mean_ent:.2f} mult={ent_adapt_mult:.2f}"
+        f"rollout {rollout_n} (step {global_step}): vs_random={wr_random:.1%} "
+        f"vs_d4={wr_d4:.1%} ent={mean_ent:.2f} mult={ent_adapt_mult:.2f}"
       )
       _save_ckpt(net, cfg.artifacts_dir / "latest.pt", global_step, cfg)
       score = wr_random + wr_d4
@@ -381,6 +385,14 @@ def train(cfg: Config | None = None) -> None:
         best_score = score
         _save_ckpt(net, cfg.artifacts_dir / "best.pt", global_step, cfg)
         logger.scalar("promotion/event", global_step, global_step)
+
+  # Final save, regardless of where the loop stopped relative to eval cadence.
+  _save_ckpt(net, cfg.artifacts_dir / "latest.pt", global_step, cfg)
+  wr_random = _eval_winrate(net, random_opp, cfg.eval_games, device)
+  wr_d4 = _eval_winrate(net, d4, cfg.eval_games, device)
+  tqdm.write(f"final: vs_random={wr_random:.1%} vs_d4={wr_d4:.1%}")
+  if wr_random + wr_d4 > best_score:
+    _save_ckpt(net, cfg.artifacts_dir / "best.pt", global_step, cfg)
 
   pbar.close()
   logger.close()
