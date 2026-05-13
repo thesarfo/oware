@@ -18,7 +18,7 @@ export function Sidebar({ onStart }: Props) {
   const [open, setOpen] = useState(true);
 
   return (
-    <div className="flex w-full flex-col rounded-2xl border border-line dark:border-dark-line lg:w-80">
+    <div className="flex w-full flex-col rounded-2xl border border-line dark:border-dark-line">
       <div className="flex items-center gap-1 p-2">
         <div className="flex flex-1 gap-1 rounded-xl border border-line p-1 dark:border-dark-line">
           {TABS.map((t) => (

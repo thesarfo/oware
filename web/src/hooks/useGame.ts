@@ -10,6 +10,7 @@ export interface GameView {
   thinking: boolean;
   lastAgentMove: AgentMoveMsg | null;
   result: GameOver | null;
+  analysing: boolean;
   error: string | null;
   newGame: (agentId: string, humanPlays: "south" | "north", seed?: number) => void;
   sendMove: (pit: number) => void;
@@ -29,6 +30,7 @@ export function useGame(): GameView {
   const [thinking, setThinking] = useState(false);
   const [lastAgentMove, setLastAgentMove] = useState<AgentMoveMsg | null>(null);
   const [result, setResult] = useState<GameOver | null>(null);
+  const [analysing, setAnalysing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,9 +63,14 @@ export function useGame(): GameView {
         case "game_over":
           setResult(msg);
           setThinking(false);
+          setAnalysing(true);
+          break;
+        case "game_analysis":
+          setResult((prev) => prev ? { ...prev, history: msg.history } : prev);
+          setAnalysing(false);
           break;
         case "error":
-          setError(msg.message);
+          if (msg.code !== "game_over") setError(msg.message);
           break;
         case "pong":
           break;
@@ -83,6 +90,7 @@ export function useGame(): GameView {
     (agentId: string, humanPlays: "south" | "north", seed?: number) => {
       setState(null);
       setResult(null);
+      setAnalysing(false);
       setError(null);
       send({ type: "new_game", agent_id: agentId, human_plays: humanPlays, seed });
     },
@@ -102,5 +110,5 @@ export function useGame(): GameView {
     send({ type: "resign", game_id: state.game_id });
   }, [send, state]);
 
-  return { conn, state, agent, thinking, lastAgentMove, result, error, newGame, sendMove, resign };
+  return { conn, state, agent, thinking, lastAgentMove, result, analysing, error, newGame, sendMove, resign };
 }

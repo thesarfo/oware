@@ -1,5 +1,6 @@
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from oware.agents.base import Agent
 from oware.engine import State
@@ -17,6 +18,7 @@ class GameSession:
   last_move_pit: int | None = None
   last_move_by: int | None = None
   last_move_captured: int = 0
+  moves: list[dict[str, Any]] = field(default_factory=list)
 
 
 class SessionStore:

@@ -3,6 +3,7 @@ import { Board } from "./components/Board";
 import { Sidebar } from "./components/Sidebar";
 import { MuteToggle } from "./components/MuteToggle";
 import { AgentInsight } from "./components/AgentInsight";
+import { AnalysisPane } from "./components/AnalysisPane";
 import { useGame } from "./hooks/useGame";
 import { useTheme } from "./hooks/useTheme";
 import { primeAudio } from "./lib/audio";
@@ -29,10 +30,17 @@ export function App() {
   const north = game.state?.stores.north ?? 0;
 
   return (
-    <div className="flex min-h-screen flex-col bg-white text-ink dark:bg-dark-bg dark:text-dark-ink lg:flex-row">
+    <div className="flex min-h-screen flex-col bg-white text-ink dark:bg-dark-bg dark:text-dark-ink">
+
+      {/* ── Header ── */}
+      <header className="py-4 text-center">
+        <h1 className="font-mono text-2xl font-semibold tracking-widest uppercase">Oware</h1>
+      </header>
+
+      <div className="flex flex-1 flex-col lg:grid lg:grid-cols-[20rem_1fr_20rem]">
 
       {/* ── Left HUD ── */}
-      <aside className="flex shrink-0 flex-col gap-3 p-4 font-mono text-[11px] leading-tight lg:w-48 lg:p-6">
+      <aside className="flex shrink-0 flex-col gap-3 p-4 font-mono text-[11px] leading-tight lg:p-6">
         <div className="rounded-xl border border-line p-3 dark:border-dark-line">
           <div className="text-muted dark:text-dark-muted"># Oware</div>
           <div>{game.conn === "open" ? "connected" : "disconnected"}</div>
@@ -99,6 +107,15 @@ export function App() {
           <p className="font-mono text-sm text-muted dark:text-dark-muted">Pick an opponent to begin.</p>
         )}
 
+        {game.result && (game.result.history?.length ?? 0) > 0 && (
+          <AnalysisPane history={game.result.history} humanSide="south" />
+        )}
+        {game.analysing && (
+          <div className="font-mono text-[11px] text-muted dark:text-dark-muted animate-pulse">
+            analysing with alphazero…
+          </div>
+        )}
+
         <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-wider text-muted dark:text-dark-muted">
           <MuteToggle />
           <button
@@ -117,6 +134,7 @@ export function App() {
         <Sidebar onStart={onStart} />
       </aside>
 
+    </div>
     </div>
   );
 }

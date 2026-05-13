@@ -86,6 +86,13 @@ class GameOver(BaseModel):
   winner: Literal["south", "north", "draw"]
   reason: EndReason
   final_stores: Stores
+  history: list[dict] = Field(default_factory=list)
+
+
+class GameAnalysis(BaseModel):
+  type: Literal["game_analysis"] = "game_analysis"
+  game_id: str
+  history: list[dict]
 
 
 class ErrorMessage(BaseModel):

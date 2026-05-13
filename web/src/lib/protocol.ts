@@ -50,12 +50,21 @@ export interface AgentMoveMsg {
   extras: Record<string, unknown>;
 }
 
+export interface MoveEntry {
+  ply: number;
+  by: Side;
+  pit: number;
+  captured: number;
+  az_hint?: number;
+}
+
 export interface GameOver {
   type: "game_over";
   game_id: string;
   winner: Side | "draw";
   reason: EndReason;
   final_stores: Stores;
+  history: MoveEntry[];
 }
 
 export interface ErrorMsg {
@@ -64,12 +73,19 @@ export interface ErrorMsg {
   message: string;
 }
 
+export interface GameAnalysis {
+  type: "game_analysis";
+  game_id: string;
+  history: MoveEntry[];
+}
+
 export type ServerMessage =
   | GameStarted
   | GameState
   | AgentThinking
   | AgentMoveMsg
   | GameOver
+  | GameAnalysis
   | ErrorMsg
   | { type: "pong"; t: number };
 

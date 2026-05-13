@@ -85,20 +85,6 @@ Eight rough weeks. Treat as a sequencing guide, not a schedule — slip the date
 
 **Done when**: a stranger can land on the site, pick an opponent, and finish a game without confusion.
 
-## Risks & mitigations
+## nice to have
 
-| Risk | Likelihood | Mitigation |
-|------|------------|------------|
-| Capture rule edge cases wrong | Medium | Property tests + cross-check vs. a published Awari solver on a handful of positions |
-| RL training plateaus | Medium | Start with terminal-only reward; only add shaping if both PPO and DQN fail to beat Minimax-d4 |
-| MCTS too slow at inference | Medium | Drop default sims to 200; batch leaf evaluation if it's the bottleneck |
-| WS connection flakes mid-game | Low | Server keeps session for 60 s after disconnect; client reconnects with `game_id` |
-| Frontend creep eats RL time | High | Lock UI scope at M2; only polish in M7 |
-
-## Out of scope (explicitly)
-
-- Auth, accounts, persistent match history.
-- Multi-GPU training.
-- Mobile-native apps.
-- Trying to beat published Awari solvers.
 - Spectator mode / live broadcast.

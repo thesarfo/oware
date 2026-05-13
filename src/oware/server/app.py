@@ -33,6 +33,7 @@ from oware.server.protocol import (
   ClientPing,
   ClientResign,
   ErrorMessage,
+  GameAnalysis,
   GameOver,
   GameStarted,
   GameState,
@@ -104,6 +105,11 @@ async def lifespan(app: FastAPI):
   app.state.telemetry = Telemetry(DB_PATH)
   await app.state.telemetry.start()
   app.state.sessions = SessionStore()
+  elo_path = Path(os.environ.get("OWARE_ELO", "artifacts/elo.json"))
+  app.state.elo: dict[str, int] = {}
+  if elo_path.exists():
+    import json
+    app.state.elo = json.loads(elo_path.read_text())
   try:
     yield
   finally:
@@ -206,7 +212,7 @@ def create_app() -> FastAPI:
         "name": a.name,
         "family": a.family,
         "description": a.description,
-        "est_elo": a.est_elo,
+        "est_elo": app.state.elo.get(a.id, a.est_elo),
       }
       for a in list_agents()
     ]
@@ -362,6 +368,12 @@ async def _handle_move(
   session.last_move_pit = msg.pit
   session.last_move_by = session.human_side
   session.last_move_captured = captured
+  session.moves.append({
+    "ply": next_state.ply - 1,
+    "by": _side_name(session.human_side),
+    "pit": msg.pit,
+    "captured": captured,
+  })
   telemetry.record_move(
     game_id=session.game_id,
     ply=next_state.ply - 1,
@@ -436,6 +448,12 @@ async def _play_agent_turns(
     session.last_move_pit = action
     session.last_move_by = agent_side
     session.last_move_captured = captured
+    session.moves.append({
+      "ply": next_state.ply - 1,
+      "by": _side_name(agent_side),
+      "pit": action,
+      "captured": captured,
+    })
     telemetry.record_move(
       game_id=session.game_id,
       ply=next_state.ply - 1,
@@ -476,15 +494,54 @@ async def _maybe_finish(
     final_stores=session.state.stores,
     total_plies=session.state.ply,
   )
+  # Send game_over immediately with plain history (no hints yet)
+  history = [dict(m) for m in session.moves]
   await ws.send_json(
     GameOver(
       game_id=session.game_id,
       winner=winner,  # type: ignore[arg-type]
       reason=reason,  # type: ignore[arg-type]
       final_stores=Stores(south=session.state.stores[0], north=session.state.stores[1]),
+      history=history,
     ).model_dump()
   )
+  # Compute AZ hints asynchronously and send as a follow-up message
+  asyncio.create_task(_send_analysis(ws, session, history))
   return True
+
+
+async def _send_analysis(ws: WebSocket, session: GameSession, history: list[dict]) -> None:
+  enriched = await _compute_history_with_hints(session, history)
+  try:
+    await ws.send_json(
+      GameAnalysis(game_id=session.game_id, history=enriched).model_dump()
+    )
+  except Exception:
+    pass
+
+
+async def _compute_history_with_hints(session: GameSession, history: list[dict]) -> list[dict]:
+  try:
+    from oware.agents.registry import get_agent as _get
+    az = _get("az")
+  except KeyError:
+    return history
+
+  # Replay game to get state at each ply, cap at 60 to bound latency
+  capped = history[:60]
+
+  def _replay():
+    s = initial_state()
+    for entry in capped:
+      try:
+        hint_action, _ = az.choose_move(s)
+        entry["az_hint"] = hint_action
+        s, _ = step(s, entry["pit"])
+      except Exception:
+        break
+
+  await asyncio.to_thread(_replay)
+  return history
 
 
 app = create_app()

@@ -11,10 +11,9 @@ interface Props {
 const PIT_R = 52;
 const PIT_GAP = 20;
 const ROW_WIDTH = 6 * (2 * PIT_R) + 5 * PIT_GAP;
-const STORE_W = ROW_WIDTH * 0.72;
-const STORE_H = 72;
-const STORE_RX = 36; // large radius gives the bean/stadium look
-const STORE_TO_ROW_GAP = 56;
+const STORE_W = ROW_WIDTH * 0.52;
+const STORE_H = 150;
+const STORE_TO_ROW_GAP = 28;
 const INTER_ROW_GAP = 36;
 const TOP_PAD = 28;
 const SIDE_PAD = 40;
@@ -24,7 +23,7 @@ const BOTTOM_ROW_ABS = [0, 1, 2, 3, 4, 5];
 
 const COLORS = {
   player: { fill: "var(--store-player-fill)", stroke: "var(--store-player-stroke)" },
-  agent:  { fill: "var(--store-agent-fill)",  stroke: "var(--store-agent-stroke)" },
+  agent: { fill: "var(--store-agent-fill)", stroke: "var(--store-agent-stroke)" },
 };
 
 function Pit({
@@ -66,7 +65,6 @@ function Store({
   count,
   orientation,
   kind,
-  label,
 }: {
   x: number;
   y: number;
@@ -75,44 +73,30 @@ function Store({
   kind: "player" | "agent";
   label: string;
 }) {
-  const halfW = STORE_W / 2;
-  const halfH = STORE_H / 2;
-  const r = STORE_RX;
+  // Path designed in 230×150 space: x ±115, y from -120 to +30.
+  // Scale to STORE_W × STORE_H.
+  const sx = STORE_W / 230;
+  const sy = STORE_H / 150;
   const colors = COLORS[kind];
-  const labelY = orientation === "top" ? halfH + 16 : -halfH - 8;
 
-  // Bean/basin: one flat edge, one fully rounded edge.
-  // top store: flat bottom, rounded top
-  // bottom store: flat top, rounded bottom
-  const d = orientation === "top"
-    ? `M ${-halfW} ${halfH}
-       L  ${halfW} ${halfH}
-       L  ${halfW} ${-halfH + r}
-       A  ${r} ${r} 0 0 0 ${halfW - r} ${-halfH}
-       L  ${-halfW + r} ${-halfH}
-       A  ${r} ${r} 0 0 0 ${-halfW} ${-halfH + r}
-       Z`
-    : `M ${-halfW} ${-halfH}
-       L  ${halfW} ${-halfH}
-       L  ${halfW} ${halfH - r}
-       A  ${r} ${r} 0 0 1 ${halfW - r} ${halfH}
-       L  ${-halfW + r} ${halfH}
-       A  ${r} ${r} 0 0 1 ${-halfW} ${halfH - r}
-       Z`;
+  function p(px: number, py: number) { return `${px * sx} ${py * sy}`; }
+
+  const d = [
+    `M ${p(-100, 30)}`, `L ${p(100, 30)}`,
+    `C ${p(108, 30)} ${p(115, 23)} ${p(115, 15)}`,
+    `C ${p(115, -120)} ${p(-115, -120)} ${p(-115, 15)}`,
+    `C ${p(-115, 23)} ${p(-108, 30)} ${p(-100, 30)}`,
+    `Z`,
+  ].join(" ");
+
+  const transform = orientation === "top"
+    ? `translate(${x} ${y}) scale(1,-1)`
+    : `translate(${x} ${y})`;
 
   return (
-    <g transform={`translate(${x} ${y})`}>
+    <g transform={transform}>
       <path d={d} fill={colors.fill} stroke={colors.stroke} strokeWidth={1.5} />
       <Seeds count={count} size="store" storeOffsetY={0} />
-      <text
-        x={0}
-        y={labelY}
-        textAnchor="middle"
-        fill="var(--seed-color)"
-        className="font-mono text-[10px] uppercase tracking-wider"
-      >
-        {label}
-      </text>
     </g>
   );
 }

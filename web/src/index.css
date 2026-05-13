@@ -13,6 +13,20 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* Scrollbar — light mode */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #c4c4c4; border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #9a9a9a; }
+
+  /* Scrollbar — dark mode */
+  .dark ::-webkit-scrollbar-thumb { background: #3a3a38; }
+  .dark ::-webkit-scrollbar-thumb:hover { background: #6b6b68; }
+
+  /* Firefox */
+  * { scrollbar-width: thin; scrollbar-color: #c4c4c4 transparent; }
+  .dark * { scrollbar-color: #3a3a38 transparent; }
+
   /* Board colour tokens — light mode */
   :root {
     --pit-player-fill:   transparent;
