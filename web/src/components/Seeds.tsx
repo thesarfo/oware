@@ -45,14 +45,15 @@ export function Seeds({ count, size = "pit", storeOffsetY = 0 }: Props) {
     <g transform={`translate(0 ${yShift})`}>
       {Array.from({ length: visible }, (_, i) => {
         const [dx, dy] = layout[i];
-        return <circle key={i} cx={dx} cy={dy} r={dotR} fill="#5b5b5b" />;
+        return <circle key={i} cx={dx} cy={dy} r={dotR} fill="var(--seed-color)" />;
       })}
       {count > layout.length && (
         <text
           x={size === "pit" ? 0 : layout[layout.length - 1][0] + 16}
           y={size === "pit" ? 28 : 4}
           textAnchor={size === "pit" ? "middle" : "start"}
-          className="fill-ink font-mono text-[10px]"
+          fill="var(--seed-color)"
+          className="font-mono text-[10px]"
         >
           {size === "pit" ? count : `+${count - layout.length}`}
         </text>

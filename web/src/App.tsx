@@ -2,11 +2,14 @@ import { useEffect } from "react";
 import { Board } from "./components/Board";
 import { Sidebar } from "./components/Sidebar";
 import { MuteToggle } from "./components/MuteToggle";
+import { AgentInsight } from "./components/AgentInsight";
 import { useGame } from "./hooks/useGame";
+import { useTheme } from "./hooks/useTheme";
 import { primeAudio } from "./lib/audio";
 
 export function App() {
   const game = useGame();
+  const { dark, toggle: toggleTheme } = useTheme();
 
   useEffect(() => {
     const handler = () => primeAudio();
@@ -26,31 +29,31 @@ export function App() {
   const north = game.state?.stores.north ?? 0;
 
   return (
-    <div className="relative min-h-screen w-full">
-      <div className="absolute left-6 top-5 space-y-3 font-mono text-[11px] leading-tight text-ink">
-        <div>
-          <div className="text-muted"># Oware</div>
-          <div>{game.conn === "open" ? "127.0.0.1 /play #" : "disconnected"}</div>
+    <div className="flex min-h-screen flex-col bg-white text-ink dark:bg-dark-bg dark:text-dark-ink lg:flex-row">
+
+      {/* ── Left HUD ── */}
+      <aside className="flex shrink-0 flex-col gap-3 p-4 font-mono text-[11px] leading-tight lg:w-48 lg:p-6">
+        <div className="rounded-xl border border-line p-3 dark:border-dark-line">
+          <div className="text-muted dark:text-dark-muted"># Oware</div>
+          <div>{game.conn === "open" ? "connected" : "disconnected"}</div>
         </div>
+
+        {game.lastAgentMove && <AgentInsight move={game.lastAgentMove} />}
+
         {game.state && (
           <>
-            <div>
-              <div className="text-muted">GameBoard</div>
-              <div>{formatRow(game.state.pits.slice(6, 12).reverse())}</div>
-              <div>{formatRow(game.state.pits.slice(0, 6))}</div>
-            </div>
-            <div>
-              <div className="text-muted">Score</div>
-              <div>{game.agent?.name ?? "AI Agent"} : {north}</div>
+            <div className="rounded-xl border border-line p-3 space-y-1 dark:border-dark-line">
+              <div className="text-muted dark:text-dark-muted">Score</div>
+              <div>{game.agent?.name ?? "Agent"} : {north}</div>
               <div>Player : {south}</div>
             </div>
-            <div>
-              <div className="text-muted">Status</div>
+            <div className="rounded-xl border border-line p-3 dark:border-dark-line">
+              <div className="text-muted dark:text-dark-muted">Status</div>
               <div>
                 {game.result
                   ? resultLabel(game.result.winner)
                   : game.thinking
-                    ? "agent thinking…"
+                    ? "thinking…"
                     : myTurn
                       ? "your move"
                       : "—"}
@@ -58,56 +61,64 @@ export function App() {
             </div>
           </>
         )}
-        {game.error && <div className="text-red-600">err: {game.error}</div>}
-      </div>
 
-      <div className="absolute right-6 top-5">
-        <Sidebar onStart={onStart} />
-      </div>
+        {game.error && <div className="text-red-500">err: {game.error}</div>}
+      </aside>
 
-      <div className="flex h-screen items-center justify-center px-8">
+      {/* ── Board ── */}
+      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-0 lg:p-8">
         {game.state ? (
-          <div className="w-full max-w-[920px]">
-            <Board
-              state={game.state}
-              onPlay={(pit) => game.sendMove(pit)}
-              disabled={!myTurn}
-            />
+          <>
+            <div className="w-full max-w-[960px]">
+              <Board
+                state={game.state}
+                onPlay={(pit) => game.sendMove(pit)}
+                disabled={!myTurn}
+              />
+            </div>
+
             {game.result && (
-              <div className="mt-6 flex items-center justify-center gap-4 font-mono text-sm">
+              <div className="flex items-center gap-4 font-mono text-sm">
                 <span>{resultLabel(game.result.winner)}</span>
-                <span className="text-muted">
-                  final: you {game.result.final_stores.south} ·{" "}
-                  {game.agent?.name ?? "agent"} {game.result.final_stores.north}
+                <span className="text-muted dark:text-dark-muted">
+                  you {game.result.final_stores.south} · {game.agent?.name ?? "agent"} {game.result.final_stores.north}
                 </span>
               </div>
             )}
-            {game.state && !game.result && (
-              <div className="mt-6 flex justify-center">
-                <button
-                  onClick={game.resign}
-                  className="border border-line px-3 py-1 font-mono text-xs uppercase tracking-wide text-muted hover:border-ink hover:text-ink"
-                >
-                  Resign
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="font-mono text-sm text-muted">Pick an opponent to begin.</div>
-        )}
-      </div>
 
-      <div className="absolute bottom-3 right-4 flex items-center gap-3 font-mono text-[10px] uppercase tracking-wider text-muted">
-        <MuteToggle />
-        <span>Development Build</span>
-      </div>
+            {!game.result && (
+              <button
+                onClick={game.resign}
+                className="rounded-xl border border-line px-4 py-2 font-mono text-xs uppercase tracking-wide text-muted transition-colors hover:border-ink hover:text-ink active:scale-95 dark:border-dark-line dark:text-dark-muted dark:hover:border-dark-muted dark:hover:text-dark-ink"
+              >
+                Resign
+              </button>
+            )}
+          </>
+        ) : (
+          <p className="font-mono text-sm text-muted dark:text-dark-muted">Pick an opponent to begin.</p>
+        )}
+
+        <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-wider text-muted dark:text-dark-muted">
+          <MuteToggle />
+          <button
+            onClick={toggleTheme}
+            className="rounded-lg border border-line px-3 py-1.5 transition-colors hover:border-ink hover:text-ink dark:border-dark-line dark:hover:border-dark-muted dark:hover:text-dark-ink"
+            aria-label="Toggle theme"
+          >
+            {dark ? "light" : "dark"}
+          </button>
+          <span>Development Build</span>
+        </div>
+      </main>
+
+      {/* ── Sidebar ── */}
+      <aside className="shrink-0 p-4 lg:p-6">
+        <Sidebar onStart={onStart} />
+      </aside>
+
     </div>
   );
-}
-
-function formatRow(row: number[]): string {
-  return "(" + row.map((n) => `'${n}'`).join(", ") + ")";
 }
 
 function resultLabel(winner: "south" | "north" | "draw"): string {

@@ -9,7 +9,7 @@ export function MuteToggle() {
   return (
     <button
       onClick={() => setMuted(!muted)}
-      className="border border-line bg-white/40 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-muted hover:border-ink hover:text-ink"
+      className="rounded-lg border border-line px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted transition-colors hover:border-ink hover:text-ink dark:border-dark-line dark:text-dark-muted dark:hover:border-dark-muted dark:hover:text-dark-ink"
       aria-label={muted ? "unmute" : "mute"}
     >
       {muted ? "sound off" : "sound on"}

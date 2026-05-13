@@ -15,30 +15,30 @@ from pydantic import ValidationError
 from oware.agents import get_agent, list_agents
 from oware.agents.base import Agent
 from oware.engine import (
-    NORTH,
-    SOUTH,
-    IllegalMoveError,
-    State,
-    initial_state,
-    legal_moves,
-    step,
-    terminal,
+  NORTH,
+  SOUTH,
+  IllegalMoveError,
+  State,
+  initial_state,
+  legal_moves,
+  step,
+  terminal,
 )
 from oware.server.protocol import (
-    AgentBrief,
-    AgentMove,
-    AgentThinking,
-    ClientMove,
-    ClientNewGame,
-    ClientPing,
-    ClientResign,
-    ErrorMessage,
-    GameOver,
-    GameStarted,
-    GameState,
-    LastMove,
-    PongMessage,
-    Stores,
+  AgentBrief,
+  AgentMove,
+  AgentThinking,
+  ClientMove,
+  ClientNewGame,
+  ClientPing,
+  ClientResign,
+  ErrorMessage,
+  GameOver,
+  GameStarted,
+  GameState,
+  LastMove,
+  PongMessage,
+  Stores,
 )
 from oware.server.sessions import GameSession, SessionStore
 from oware.server.telemetry import Telemetry
@@ -51,89 +51,89 @@ DB_PATH = Path(os.environ.get("OWARE_DB", "artifacts/telemetry.db"))
 
 
 def _hash_client(cookie: str | None) -> str | None:
-    if cookie is None:
-        return None
-    return hashlib.sha256(f"{cookie}{CLIENT_SALT}".encode()).hexdigest()[:16]
+  if cookie is None:
+    return None
+  return hashlib.sha256(f"{cookie}{CLIENT_SALT}".encode()).hexdigest()[:16]
 
 
 def _side_name(side: int) -> str:
-    return "south" if side == SOUTH else "north"
+  return "south" if side == SOUTH else "north"
 
 
 def _state_message(session: GameSession) -> GameState:
-    s = session.state
-    last = None
-    if session.last_move_pit is not None and session.last_move_by is not None:
-        last = LastMove(
-            by=_side_name(session.last_move_by),  # type: ignore[arg-type]
-            pit=session.last_move_pit,
-            captured=session.last_move_captured,
-        )
-    return GameState(
-        game_id=session.game_id,
-        pits=list(s.pits),
-        stores=Stores(south=s.stores[0], north=s.stores[1]),
-        to_move=_side_name(s.to_move),  # type: ignore[arg-type]
-        ply=s.ply,
-        legal_moves=legal_moves(s),
-        last_move=last,
+  s = session.state
+  last = None
+  if session.last_move_pit is not None and session.last_move_by is not None:
+    last = LastMove(
+      by=_side_name(session.last_move_by),  # type: ignore[arg-type]
+      pit=session.last_move_pit,
+      captured=session.last_move_captured,
     )
+  return GameState(
+    game_id=session.game_id,
+    pits=list(s.pits),
+    stores=Stores(south=s.stores[0], north=s.stores[1]),
+    to_move=_side_name(s.to_move),  # type: ignore[arg-type]
+    ply=s.ply,
+    legal_moves=legal_moves(s),
+    last_move=last,
+  )
 
 
 def _determine_winner(s: State) -> tuple[bool, str | None, str]:
-    done, winner_id = terminal(s)
-    if not done:
-        return False, None, ""
-    if winner_id == SOUTH:
-        winner = "south"
-    elif winner_id == NORTH:
-        winner = "north"
-    else:
-        winner = "draw"
-    if s.stores[0] >= 25 or s.stores[1] >= 25:
-        reason = "majority"
-    elif s.plies_since_capture >= 100:
-        reason = "no_progress"
-    else:
-        reason = "must_feed"
-    return True, winner, reason
+  done, winner_id = terminal(s)
+  if not done:
+    return False, None, ""
+  if winner_id == SOUTH:
+    winner = "south"
+  elif winner_id == NORTH:
+    winner = "north"
+  else:
+    winner = "draw"
+  if s.stores[0] >= 25 or s.stores[1] >= 25:
+    reason = "majority"
+  elif s.plies_since_capture >= 100:
+    reason = "no_progress"
+  else:
+    reason = "must_feed"
+  return True, winner, reason
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.telemetry = Telemetry(DB_PATH)
-    await app.state.telemetry.start()
-    app.state.sessions = SessionStore()
-    try:
-        yield
-    finally:
-        await app.state.telemetry.stop()
+  app.state.telemetry = Telemetry(DB_PATH)
+  await app.state.telemetry.start()
+  app.state.sessions = SessionStore()
+  try:
+    yield
+  finally:
+    await app.state.telemetry.stop()
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(lifespan=lifespan, title="Oware Server")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+  app = FastAPI(lifespan=lifespan, title="Oware Server")
+  app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+  )
 
-    @app.get("/healthz")
-    async def healthz() -> dict[str, str]:
-        return {"status": "ok"}
+  @app.get("/healthz")
+  async def healthz() -> dict[str, str]:
+    return {"status": "ok"}
 
-    @app.get("/stats")
-    async def stats() -> dict[str, Any]:
-        import sqlite3
+  @app.get("/stats")
+  async def stats() -> dict[str, Any]:
+    import sqlite3
 
-        conn = sqlite3.connect(str(DB_PATH))
-        try:
-            totals = conn.execute(
-                "SELECT COUNT(*), COALESCE(AVG(total_plies), 0) FROM games WHERE ended_at IS NOT NULL"
-            ).fetchone()
-            by_agent = conn.execute(
-                """
+    conn = sqlite3.connect(str(DB_PATH))
+    try:
+      totals = conn.execute(
+        "SELECT COUNT(*), COALESCE(AVG(total_plies), 0) FROM games WHERE ended_at IS NOT NULL"
+      ).fetchone()
+      by_agent = conn.execute(
+        """
                 SELECT agent_id,
                        COUNT(*) AS games,
                        SUM(CASE WHEN winner = human_plays THEN 1 ELSE 0 END) AS human_wins,
@@ -146,9 +146,9 @@ def create_app() -> FastAPI:
                 GROUP BY agent_id
                 ORDER BY games DESC
                 """
-            ).fetchall()
-            recent = conn.execute(
-                """
+      ).fetchall()
+      recent = conn.execute(
+        """
                 SELECT agent_id, winner, end_reason, total_plies,
                        final_store_south, final_store_north, created_at
                 FROM games
@@ -156,355 +156,335 @@ def create_app() -> FastAPI:
                 ORDER BY ended_at DESC
                 LIMIT 8
                 """
-            ).fetchall()
-        finally:
-            conn.close()
+      ).fetchall()
+    finally:
+      conn.close()
 
-        return {
-            "totals": {
-                "games": totals[0],
-                "avg_plies": round(totals[1], 1),
-            },
-            "by_agent": [
-                {
-                    "agent_id": r[0],
-                    "games": r[1],
-                    "human_wins": r[2] or 0,
-                    "agent_wins": r[3] or 0,
-                    "draws": r[4] or 0,
-                    "resigns": r[5] or 0,
-                    "avg_plies": round(r[6], 1),
-                }
-                for r in by_agent
-            ],
-            "recent": [
-                {
-                    "agent_id": r[0],
-                    "winner": r[1],
-                    "reason": r[2],
-                    "plies": r[3],
-                    "south": r[4],
-                    "north": r[5],
-                    "created_at": r[6],
-                }
-                for r in recent
-            ],
+    return {
+      "totals": {
+        "games": totals[0],
+        "avg_plies": round(totals[1], 1),
+      },
+      "by_agent": [
+        {
+          "agent_id": r[0],
+          "games": r[1],
+          "human_wins": r[2] or 0,
+          "agent_wins": r[3] or 0,
+          "draws": r[4] or 0,
+          "resigns": r[5] or 0,
+          "avg_plies": round(r[6], 1),
         }
+        for r in by_agent
+      ],
+      "recent": [
+        {
+          "agent_id": r[0],
+          "winner": r[1],
+          "reason": r[2],
+          "plies": r[3],
+          "south": r[4],
+          "north": r[5],
+          "created_at": r[6],
+        }
+        for r in recent
+      ],
+    }
 
-    @app.get("/agents")
-    async def agents(
-        response: Response, oware_client: str | None = Cookie(default=None)
-    ):
-        if oware_client is None:
-            response.set_cookie(
-                CLIENT_COOKIE,
-                secrets.token_urlsafe(16),
-                max_age=60 * 60 * 24 * 365,
-                samesite="lax",
-            )
-        return [
-            {
-                "id": a.id,
-                "name": a.name,
-                "family": a.family,
-                "description": a.description,
-                "est_elo": a.est_elo,
-            }
-            for a in list_agents()
-        ]
+  @app.get("/agents")
+  async def agents(response: Response, oware_client: str | None = Cookie(default=None)):
+    if oware_client is None:
+      response.set_cookie(
+        CLIENT_COOKIE,
+        secrets.token_urlsafe(16),
+        max_age=60 * 60 * 24 * 365,
+        samesite="lax",
+      )
+    return [
+      {
+        "id": a.id,
+        "name": a.name,
+        "family": a.family,
+        "description": a.description,
+        "est_elo": a.est_elo,
+      }
+      for a in list_agents()
+    ]
 
-    @app.websocket("/play")
-    async def play(ws: WebSocket) -> None:
-        await ws.accept()
-        owner = id(ws)
-        sessions: SessionStore = app.state.sessions
-        telemetry: Telemetry = app.state.telemetry
-        client_cookie = ws.cookies.get(CLIENT_COOKIE)
-        client_hash = _hash_client(client_cookie)
+  @app.websocket("/play")
+  async def play(ws: WebSocket) -> None:
+    await ws.accept()
+    owner = id(ws)
+    sessions: SessionStore = app.state.sessions
+    telemetry: Telemetry = app.state.telemetry
+    client_cookie = ws.cookies.get(CLIENT_COOKIE)
+    client_hash = _hash_client(client_cookie)
 
-        try:
-            while True:
-                raw = await ws.receive_json()
-                await _dispatch(ws, raw, owner, sessions, telemetry, client_hash)
-        except WebSocketDisconnect:
-            for sess in sessions.drop_connection(owner):
-                if not sess.ended:
-                    sess.ended = True
-                    telemetry.record_game_end(
-                        game_id=sess.game_id,
-                        winner=None,
-                        end_reason="disconnect",
-                        final_stores=sess.state.stores,
-                        total_plies=sess.state.ply,
-                    )
+    try:
+      while True:
+        raw = await ws.receive_json()
+        await _dispatch(ws, raw, owner, sessions, telemetry, client_hash)
+    except WebSocketDisconnect:
+      for sess in sessions.drop_connection(owner):
+        if not sess.ended:
+          sess.ended = True
+          telemetry.record_game_end(
+            game_id=sess.game_id,
+            winner=None,
+            end_reason="disconnect",
+            final_stores=sess.state.stores,
+            total_plies=sess.state.ply,
+          )
 
-    return app
+  return app
 
 
 async def _dispatch(
-    ws: WebSocket,
-    raw: dict[str, Any],
-    owner: int,
-    sessions: SessionStore,
-    telemetry: Telemetry,
-    client_hash: str | None,
+  ws: WebSocket,
+  raw: dict[str, Any],
+  owner: int,
+  sessions: SessionStore,
+  telemetry: Telemetry,
+  client_hash: str | None,
 ) -> None:
-    msg_type = raw.get("type")
-    try:
-        if msg_type == "new_game":
-            await _handle_new_game(
-                ws,
-                ClientNewGame.model_validate(raw),
-                owner,
-                sessions,
-                telemetry,
-                client_hash,
-            )
-        elif msg_type == "move":
-            await _handle_move(
-                ws, ClientMove.model_validate(raw), owner, sessions, telemetry
-            )
-        elif msg_type == "resign":
-            await _handle_resign(
-                ws, ClientResign.model_validate(raw), owner, sessions, telemetry
-            )
-        elif msg_type == "ping":
-            ping = ClientPing.model_validate(raw)
-            await ws.send_json(PongMessage(t=ping.t).model_dump())
-        else:
-            await ws.send_json(
-                ErrorMessage(
-                    code="unknown_type", message=f"unknown type: {msg_type!r}"
-                ).model_dump()
-            )
-    except ValidationError as e:
-        await ws.send_json(
-            ErrorMessage(code="bad_payload", message=str(e)).model_dump()
-        )
+  msg_type = raw.get("type")
+  try:
+    if msg_type == "new_game":
+      await _handle_new_game(
+        ws,
+        ClientNewGame.model_validate(raw),
+        owner,
+        sessions,
+        telemetry,
+        client_hash,
+      )
+    elif msg_type == "move":
+      await _handle_move(ws, ClientMove.model_validate(raw), owner, sessions, telemetry)
+    elif msg_type == "resign":
+      await _handle_resign(
+        ws, ClientResign.model_validate(raw), owner, sessions, telemetry
+      )
+    elif msg_type == "ping":
+      ping = ClientPing.model_validate(raw)
+      await ws.send_json(PongMessage(t=ping.t).model_dump())
+    else:
+      await ws.send_json(
+        ErrorMessage(
+          code="unknown_type", message=f"unknown type: {msg_type!r}"
+        ).model_dump()
+      )
+  except ValidationError as e:
+    await ws.send_json(ErrorMessage(code="bad_payload", message=str(e)).model_dump())
 
 
 async def _handle_new_game(
-    ws: WebSocket,
-    msg: ClientNewGame,
-    owner: int,
-    sessions: SessionStore,
-    telemetry: Telemetry,
-    client_hash: str | None,
+  ws: WebSocket,
+  msg: ClientNewGame,
+  owner: int,
+  sessions: SessionStore,
+  telemetry: Telemetry,
+  client_hash: str | None,
 ) -> None:
-    try:
-        agent: Agent = get_agent(msg.agent_id, seed=msg.seed)
-    except KeyError:
-        await ws.send_json(
-            ErrorMessage(
-                code="unknown_agent", message=f"no such agent: {msg.agent_id}"
-            ).model_dump()
-        )
-        return
-
-    human_side = SOUTH if msg.human_plays == "south" else NORTH
-    session = sessions.create(
-        owner=owner,
-        agent=agent,
-        human_side=human_side,
-        state=initial_state(),
-        seed=msg.seed,
-        client_id_hash=client_hash,
-    )
-    telemetry.record_game_start(
-        game_id=session.game_id,
-        agent_id=agent.info.id,
-        opponent_kind="human",
-        human_plays=msg.human_plays,
-        client_id_hash=client_hash,
-        seed=msg.seed,
-        initial_state=session.state,
-    )
-
+  try:
+    agent: Agent = get_agent(msg.agent_id, seed=msg.seed)
+  except KeyError:
     await ws.send_json(
-        GameStarted(
-            game_id=session.game_id,
-            agent=AgentBrief(id=agent.info.id, name=agent.info.name),
-            state=_state_message(session),
-        ).model_dump()
+      ErrorMessage(
+        code="unknown_agent", message=f"no such agent: {msg.agent_id}"
+      ).model_dump()
     )
+    return
 
-    if session.state.to_move != human_side:
-        await _play_agent_turns(ws, session, telemetry)
+  human_side = SOUTH if msg.human_plays == "south" else NORTH
+  session = sessions.create(
+    owner=owner,
+    agent=agent,
+    human_side=human_side,
+    state=initial_state(),
+    seed=msg.seed,
+    client_id_hash=client_hash,
+  )
+  telemetry.record_game_start(
+    game_id=session.game_id,
+    agent_id=agent.info.id,
+    opponent_kind="human",
+    human_plays=msg.human_plays,
+    client_id_hash=client_hash,
+    seed=msg.seed,
+    initial_state=session.state,
+  )
 
+  await ws.send_json(
+    GameStarted(
+      game_id=session.game_id,
+      agent=AgentBrief(id=agent.info.id, name=agent.info.name),
+      state=_state_message(session),
+    ).model_dump()
+  )
 
-async def _handle_move(
-    ws: WebSocket,
-    msg: ClientMove,
-    owner: int,
-    sessions: SessionStore,
-    telemetry: Telemetry,
-) -> None:
-    session = sessions.get(owner=owner, game_id=msg.game_id)
-    if session is None:
-        await ws.send_json(
-            ErrorMessage(
-                code="unknown_game", message=f"no such game: {msg.game_id}"
-            ).model_dump()
-        )
-        return
-    if session.ended:
-        await ws.send_json(
-            ErrorMessage(
-                code="game_over", message="game has already ended"
-            ).model_dump()
-        )
-        return
-    if session.state.to_move != session.human_side:
-        await ws.send_json(
-            ErrorMessage(
-                code="not_your_turn", message="not the human's turn"
-            ).model_dump()
-        )
-        return
-
-    try:
-        next_state, captured = step(session.state, msg.pit)
-    except IllegalMoveError as e:
-        await ws.send_json(
-            ErrorMessage(code="illegal_move", message=str(e)).model_dump()
-        )
-        return
-
-    session.state = next_state
-    session.last_move_pit = msg.pit
-    session.last_move_by = session.human_side
-    session.last_move_captured = captured
-    telemetry.record_move(
-        game_id=session.game_id,
-        ply=next_state.ply - 1,
-        side=_side_name(session.human_side),
-        actor="human",
-        action=msg.pit,
-        captured=captured,
-        state_after=next_state,
-        thought_ms=None,
-        agent_extras=None,
-    )
-
-    await ws.send_json(_state_message(session).model_dump())
-
-    if await _maybe_finish(ws, session, telemetry):
-        return
+  if session.state.to_move != human_side:
     await _play_agent_turns(ws, session, telemetry)
 
 
-async def _handle_resign(
-    ws: WebSocket,
-    msg: ClientResign,
-    owner: int,
-    sessions: SessionStore,
-    telemetry: Telemetry,
+async def _handle_move(
+  ws: WebSocket,
+  msg: ClientMove,
+  owner: int,
+  sessions: SessionStore,
+  telemetry: Telemetry,
 ) -> None:
-    session = sessions.get(owner=owner, game_id=msg.game_id)
-    if session is None or session.ended:
-        return
-    session.ended = True
-    winner = "north" if session.human_side == SOUTH else "south"
-    telemetry.record_game_end(
-        game_id=session.game_id,
-        winner=winner,
-        end_reason="resign",
-        final_stores=session.state.stores,
-        total_plies=session.state.ply,
-    )
+  session = sessions.get(owner=owner, game_id=msg.game_id)
+  if session is None:
     await ws.send_json(
-        GameOver(
-            game_id=session.game_id,
-            winner=winner,  # type: ignore[arg-type]
-            reason="resign",
-            final_stores=Stores(
-                south=session.state.stores[0], north=session.state.stores[1]
-            ),
-        ).model_dump()
+      ErrorMessage(
+        code="unknown_game", message=f"no such game: {msg.game_id}"
+      ).model_dump()
     )
+    return
+  if session.ended:
+    await ws.send_json(
+      ErrorMessage(code="game_over", message="game has already ended").model_dump()
+    )
+    return
+  if session.state.to_move != session.human_side:
+    await ws.send_json(
+      ErrorMessage(code="not_your_turn", message="not the human's turn").model_dump()
+    )
+    return
+
+  try:
+    next_state, captured = step(session.state, msg.pit)
+  except IllegalMoveError as e:
+    await ws.send_json(ErrorMessage(code="illegal_move", message=str(e)).model_dump())
+    return
+
+  session.state = next_state
+  session.last_move_pit = msg.pit
+  session.last_move_by = session.human_side
+  session.last_move_captured = captured
+  telemetry.record_move(
+    game_id=session.game_id,
+    ply=next_state.ply - 1,
+    side=_side_name(session.human_side),
+    actor="human",
+    action=msg.pit,
+    captured=captured,
+    state_after=next_state,
+    thought_ms=None,
+    agent_extras=None,
+  )
+
+  await ws.send_json(_state_message(session).model_dump())
+
+  if await _maybe_finish(ws, session, telemetry):
+    return
+  await _play_agent_turns(ws, session, telemetry)
+
+
+async def _handle_resign(
+  ws: WebSocket,
+  msg: ClientResign,
+  owner: int,
+  sessions: SessionStore,
+  telemetry: Telemetry,
+) -> None:
+  session = sessions.get(owner=owner, game_id=msg.game_id)
+  if session is None or session.ended:
+    return
+  session.ended = True
+  winner = "north" if session.human_side == SOUTH else "south"
+  telemetry.record_game_end(
+    game_id=session.game_id,
+    winner=winner,
+    end_reason="resign",
+    final_stores=session.state.stores,
+    total_plies=session.state.ply,
+  )
+  await ws.send_json(
+    GameOver(
+      game_id=session.game_id,
+      winner=winner,  # type: ignore[arg-type]
+      reason="resign",
+      final_stores=Stores(south=session.state.stores[0], north=session.state.stores[1]),
+    ).model_dump()
+  )
 
 
 async def _play_agent_turns(
-    ws: WebSocket, session: GameSession, telemetry: Telemetry
+  ws: WebSocket, session: GameSession, telemetry: Telemetry
 ) -> None:
-    while not session.ended and session.state.to_move != session.human_side:
-        await ws.send_json(
-            AgentThinking(
-                game_id=session.game_id, since=int(time.time() * 1000)
-            ).model_dump()
-        )
-        t0 = time.perf_counter()
-        action, extras = await asyncio.to_thread(
-            session.agent.choose_move, session.state
-        )
-        thought_ms = int((time.perf_counter() - t0) * 1000)
+  while not session.ended and session.state.to_move != session.human_side:
+    await ws.send_json(
+      AgentThinking(game_id=session.game_id, since=int(time.time() * 1000)).model_dump()
+    )
+    t0 = time.perf_counter()
+    action, extras = await asyncio.to_thread(session.agent.choose_move, session.state)
+    thought_ms = int((time.perf_counter() - t0) * 1000)
 
-        try:
-            next_state, captured = step(session.state, action)
-        except IllegalMoveError as e:
-            await ws.send_json(
-                ErrorMessage(
-                    code="agent_bug", message=f"agent chose illegal move: {e}"
-                ).model_dump()
-            )
-            return
+    try:
+      next_state, captured = step(session.state, action)
+    except IllegalMoveError as e:
+      await ws.send_json(
+        ErrorMessage(
+          code="agent_bug", message=f"agent chose illegal move: {e}"
+        ).model_dump()
+      )
+      return
 
-        session.state = next_state
-        agent_side = 1 - session.human_side
-        session.last_move_pit = action
-        session.last_move_by = agent_side
-        session.last_move_captured = captured
-        telemetry.record_move(
-            game_id=session.game_id,
-            ply=next_state.ply - 1,
-            side=_side_name(agent_side),
-            actor="agent",
-            action=action,
-            captured=captured,
-            state_after=next_state,
-            thought_ms=thought_ms,
-            agent_extras=extras,
-        )
+    session.state = next_state
+    agent_side = 1 - session.human_side
+    session.last_move_pit = action
+    session.last_move_by = agent_side
+    session.last_move_captured = captured
+    telemetry.record_move(
+      game_id=session.game_id,
+      ply=next_state.ply - 1,
+      side=_side_name(agent_side),
+      actor="agent",
+      action=action,
+      captured=captured,
+      state_after=next_state,
+      thought_ms=thought_ms,
+      agent_extras=extras,
+    )
 
-        await ws.send_json(
-            AgentMove(
-                game_id=session.game_id,
-                pit=action,
-                thought_ms=thought_ms,
-                extras=extras,
-            ).model_dump()
-        )
-        await ws.send_json(_state_message(session).model_dump())
+    await ws.send_json(
+      AgentMove(
+        game_id=session.game_id,
+        pit=action,
+        thought_ms=thought_ms,
+        extras=extras,
+      ).model_dump()
+    )
+    await ws.send_json(_state_message(session).model_dump())
 
-        if await _maybe_finish(ws, session, telemetry):
-            return
+    if await _maybe_finish(ws, session, telemetry):
+      return
 
 
 async def _maybe_finish(
-    ws: WebSocket, session: GameSession, telemetry: Telemetry
+  ws: WebSocket, session: GameSession, telemetry: Telemetry
 ) -> bool:
-    done, winner, reason = _determine_winner(session.state)
-    if not done:
-        return False
-    session.ended = True
-    telemetry.record_game_end(
-        game_id=session.game_id,
-        winner=winner,
-        end_reason=reason,
-        final_stores=session.state.stores,
-        total_plies=session.state.ply,
-    )
-    await ws.send_json(
-        GameOver(
-            game_id=session.game_id,
-            winner=winner,  # type: ignore[arg-type]
-            reason=reason,  # type: ignore[arg-type]
-            final_stores=Stores(
-                south=session.state.stores[0], north=session.state.stores[1]
-            ),
-        ).model_dump()
-    )
-    return True
+  done, winner, reason = _determine_winner(session.state)
+  if not done:
+    return False
+  session.ended = True
+  telemetry.record_game_end(
+    game_id=session.game_id,
+    winner=winner,
+    end_reason=reason,
+    final_stores=session.state.stores,
+    total_plies=session.state.ply,
+  )
+  await ws.send_json(
+    GameOver(
+      game_id=session.game_id,
+      winner=winner,  # type: ignore[arg-type]
+      reason=reason,  # type: ignore[arg-type]
+      final_stores=Stores(south=session.state.stores[0], north=session.state.stores[1]),
+    ).model_dump()
+  )
+  return True
 
 
 app = create_app()

@@ -29,18 +29,18 @@ const RULES: Rule[] = [
 export function RulesTab() {
   return (
     <div className="flex flex-col gap-3">
-      <div className="font-mono text-xs uppercase tracking-wide text-muted">Abapa rules</div>
+      <div className="font-mono text-xs uppercase tracking-wide text-muted dark:text-dark-muted">Abapa rules</div>
       <div className="flex flex-col gap-2.5">
         {RULES.map((r) => (
-          <div key={r.title} className="border border-line bg-white/40 px-3 py-2.5">
-            <div className="font-mono text-[11px] uppercase tracking-wider text-muted">
+          <div key={r.title} className="rounded-xl border border-line px-3 py-2.5 dark:border-dark-line">
+            <div className="font-mono text-[11px] uppercase tracking-wider text-muted dark:text-dark-muted">
               {r.title}
             </div>
-            <div className="mt-1 text-[12px] leading-snug text-ink">{r.body}</div>
+            <div className="mt-1 text-[12px] leading-snug text-ink dark:text-dark-ink">{r.body}</div>
           </div>
         ))}
       </div>
-      <div className="text-[11px] leading-relaxed text-muted">
+      <div className="text-[11px] leading-relaxed text-muted dark:text-dark-muted">
         Variant: Abapa, the tournament ruleset played across West Africa and the Caribbean (also
         known as Ayoayo, Awale, Warri, Adji-Boto).
       </div>

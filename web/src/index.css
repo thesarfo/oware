@@ -12,4 +12,34 @@
     font-feature-settings: "ss01", "cv11";
     -webkit-font-smoothing: antialiased;
   }
+
+  /* Board colour tokens — light mode */
+  :root {
+    --pit-player-fill:   transparent;
+    --pit-player-stroke: #a89368;
+    --pit-agent-fill:    transparent;
+    --pit-agent-stroke:  #7b8794;
+    --pit-hover-fill:    #ececea;
+    --pit-highlight-fill:#ececea;
+    --seed-color:        #5b5b5b;
+    --store-player-fill: #ece4d2;
+    --store-player-stroke: #a89368;
+    --store-agent-fill:  #dde2e8;
+    --store-agent-stroke:#7b8794;
+  }
+
+  /* Board colour tokens — dark mode */
+  .dark {
+    --pit-player-fill:   transparent;
+    --pit-player-stroke: #7a6a50;
+    --pit-agent-fill:    transparent;
+    --pit-agent-stroke:  #556070;
+    --pit-hover-fill:    #2a2a28;
+    --pit-highlight-fill:#2a2a28;
+    --seed-color:        #c4c4c0;
+    --store-player-fill: #2a2520;
+    --store-player-stroke:#7a6a50;
+    --store-agent-fill:  #1e2530;
+    --store-agent-stroke:#556070;
+  }
 }

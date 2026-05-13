@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    host: "0.0.0.0",
     proxy: {
       "/agents": "http://127.0.0.1:8000",
       "/stats": "http://127.0.0.1:8000",

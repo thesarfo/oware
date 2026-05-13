@@ -8,23 +8,23 @@ interface Props {
   disabled: boolean;
 }
 
-const PIT_R = 44;
-const PIT_GAP = 28;
+const PIT_R = 52;
+const PIT_GAP = 20;
 const ROW_WIDTH = 6 * (2 * PIT_R) + 5 * PIT_GAP;
-const STORE_W = ROW_WIDTH * 0.62;
-const STORE_H = 84;
+const STORE_W = ROW_WIDTH * 0.72;
+const STORE_H = 72;
+const STORE_RX = 36; // large radius gives the bean/stadium look
 const STORE_TO_ROW_GAP = 56;
 const INTER_ROW_GAP = 36;
 const TOP_PAD = 28;
 const SIDE_PAD = 40;
-const STORE_SEED_INSET = 10;
 
 const TOP_ROW_ABS = [11, 10, 9, 8, 7, 6];
 const BOTTOM_ROW_ABS = [0, 1, 2, 3, 4, 5];
 
 const COLORS = {
-  player: { fill: "#ece4d2", stroke: "#a89368" },
-  agent: { fill: "#dde2e8", stroke: "#7b8794" },
+  player: { fill: "var(--store-player-fill)", stroke: "var(--store-player-stroke)" },
+  agent:  { fill: "var(--store-agent-fill)",  stroke: "var(--store-agent-stroke)" },
 };
 
 function Pit({
@@ -50,10 +50,10 @@ function Pit({
     >
       <circle
         r={PIT_R}
-        fill={highlight ? "#ececea" : "transparent"}
-        stroke={clickable ? "#7a7a7a" : "#c4c4c4"}
+        fill={highlight ? "var(--pit-highlight-fill)" : "var(--pit-player-fill)"}
+        stroke={clickable ? "var(--pit-player-stroke)" : "var(--pit-agent-stroke)"}
         strokeWidth={1.5}
-        className={clickable ? "transition-colors hover:fill-[#ececea]" : ""}
+        className={clickable ? "transition-colors hover:fill-[var(--pit-hover-fill)]" : ""}
       />
       <Seeds count={count} size="pit" />
     </g>
@@ -77,22 +77,39 @@ function Store({
 }) {
   const halfW = STORE_W / 2;
   const halfH = STORE_H / 2;
-  const d =
-    orientation === "top"
-      ? `M ${-halfW} ${halfH} A ${halfW} ${STORE_H} 0 0 1 ${halfW} ${halfH} Z`
-      : `M ${-halfW} ${-halfH} A ${halfW} ${STORE_H} 0 0 0 ${halfW} ${-halfH} Z`;
-  const seedOffset = orientation === "top" ? STORE_SEED_INSET : -STORE_SEED_INSET;
+  const r = STORE_RX;
   const colors = COLORS[kind];
   const labelY = orientation === "top" ? halfH + 16 : -halfH - 8;
+
+  // Bean/basin: one flat edge, one fully rounded edge.
+  // top store: flat bottom, rounded top
+  // bottom store: flat top, rounded bottom
+  const d = orientation === "top"
+    ? `M ${-halfW} ${halfH}
+       L  ${halfW} ${halfH}
+       L  ${halfW} ${-halfH + r}
+       A  ${r} ${r} 0 0 0 ${halfW - r} ${-halfH}
+       L  ${-halfW + r} ${-halfH}
+       A  ${r} ${r} 0 0 0 ${-halfW} ${-halfH + r}
+       Z`
+    : `M ${-halfW} ${-halfH}
+       L  ${halfW} ${-halfH}
+       L  ${halfW} ${halfH - r}
+       A  ${r} ${r} 0 0 1 ${halfW - r} ${halfH}
+       L  ${-halfW + r} ${halfH}
+       A  ${r} ${r} 0 0 1 ${-halfW} ${halfH - r}
+       Z`;
+
   return (
     <g transform={`translate(${x} ${y})`}>
       <path d={d} fill={colors.fill} stroke={colors.stroke} strokeWidth={1.5} />
-      <Seeds count={count} size="store" storeOffsetY={seedOffset} />
+      <Seeds count={count} size="store" storeOffsetY={0} />
       <text
         x={0}
         y={labelY}
         textAnchor="middle"
-        className="fill-muted font-mono text-[10px] uppercase tracking-wider"
+        fill="var(--seed-color)"
+        className="font-mono text-[10px] uppercase tracking-wider"
       >
         {label}
       </text>
@@ -189,7 +206,7 @@ export function Board({ state, onPlay, disabled }: Props) {
           cx={flyingCenter.x}
           cy={flyingCenter.y}
           r={6}
-          fill="#3a3a3a"
+          fill="var(--seed-color)"
           style={{ transition: "cx 110ms ease-out, cy 110ms ease-out" }}
         />
       )}
