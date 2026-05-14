@@ -1,0 +1,28 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      OWARE_CLIENT_SALT: ${OWARE_CLIENT_SALT:-dev-salt-not-for-prod}
+    volumes:
+      - oware-data:/data
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_URL: http://api:8000
+      PORT: "4173"
+    ports:
+      - "4173:4173"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  oware-data:

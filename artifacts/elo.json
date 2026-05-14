@@ -1,0 +1,9 @@
+{
+  "minimax_d6": 1396,
+  "dqn": 1171,
+  "minimax_d2": 1064,
+  "minimax_d4": 1064,
+  "ppo": 926,
+  "random": 777,
+  "az": 602
+}

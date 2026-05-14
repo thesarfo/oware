@@ -1,0 +1,40 @@
+.git
+.gitignore
+.venv
+.ruff_cache
+.pytest_cache
+__pycache__
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# Node
+web/node_modules
+web/dist
+
+# Local artifacts — keep model checkpoints, drop runtime state.
+artifacts/*
+!artifacts/elo.json
+!artifacts/dqn/
+!artifacts/ppo/
+!artifacts/az/
+artifacts/dqn/*
+artifacts/ppo/*
+artifacts/az/*
+!artifacts/dqn/*.pt
+!artifacts/ppo/*.pt
+!artifacts/az/*.pt
+**/runs
+**/checkpoints
+
+# Editor / OS
+.idea
+.vscode
+.DS_Store
+
+# Docs / tests are not needed in the image
+docs
+tests
+
+Dockerfile
+.dockerignore

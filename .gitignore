@@ -15,5 +15,19 @@ wheels/
 .coverage
 htmlcov/
 
-# Project artifacts (checkpoints, telemetry, tensorboard, eval reports)
-artifacts/
+# Project artifacts — ignore runtime state (telemetry, tensorboard, eval reports)
+# but track model checkpoints so they ship with the container image.
+artifacts/*
+!artifacts/elo.json
+!artifacts/dqn/
+!artifacts/ppo/
+!artifacts/az/
+artifacts/dqn/*
+artifacts/ppo/*
+artifacts/az/*
+!artifacts/dqn/*.pt
+!artifacts/ppo/*.pt
+!artifacts/az/*.pt
+
+
+telemetry.db
