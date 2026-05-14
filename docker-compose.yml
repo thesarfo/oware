@@ -5,23 +5,13 @@ services:
       dockerfile: Dockerfile
     environment:
       OWARE_CLIENT_SALT: ${OWARE_CLIENT_SALT:-dev-salt-not-for-prod}
+      OWARE_ALLOWED_ORIGINS: ${OWARE_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      OWARE_COOKIE_SAMESITE: ${OWARE_COOKIE_SAMESITE:-lax}
+      OWARE_COOKIE_SECURE: ${OWARE_COOKIE_SECURE:-0}
     volumes:
       - oware-data:/data
-    expose:
-      - "8000"
-    restart: unless-stopped
-
-  web:
-    build:
-      context: ./web
-      dockerfile: Dockerfile
-    environment:
-      VITE_API_URL: http://api:8000
-      PORT: "4173"
     ports:
-      - "4173:4173"
-    depends_on:
-      - api
+      - "8000:8000"
     restart: unless-stopped
 
 volumes:

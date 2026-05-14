@@ -1,3 +1,5 @@
+import { apiUrl } from "./api";
+
 export interface GameListEntry {
   game_id: string;
   agent_id: string;
@@ -81,7 +83,7 @@ export interface GamesResponse {
 }
 
 export async function fetchGames(scope: Scope = "mine", kind: Kind = "all", page = 1): Promise<GamesResponse> {
-  const r = await fetch(`/games?scope=${scope}&kind=${kind}&page=${page}&page_size=24`, { credentials: "include" });
+  const r = await fetch(apiUrl(`/games?scope=${scope}&kind=${kind}&page=${page}&page_size=24`), { credentials: "include" });
   if (!r.ok) return { total: 0, page, page_size: 24, items: [] };
   return r.json();
 }
@@ -90,7 +92,7 @@ export async function fetchGame(
   id: string,
   scope: Scope = "mine",
 ): Promise<GameDetail | null> {
-  const r = await fetch(`/games/${id}?scope=${scope}`, { credentials: "include" });
+  const r = await fetch(apiUrl(`/games/${id}?scope=${scope}`), { credentials: "include" });
   if (!r.ok) return null;
   return r.json();
 }
@@ -162,7 +164,7 @@ export interface Stats {
 }
 
 export async function fetchStats(scope: Scope = "all", kind: Kind = "human"): Promise<Stats | null> {
-  const r = await fetch(`/stats?scope=${scope}&kind=${kind}`, { credentials: "include" });
+  const r = await fetch(apiUrl(`/stats?scope=${scope}&kind=${kind}`), { credentials: "include" });
   if (!r.ok) return null;
   const data = await r.json();
   // guard against older server responses missing these fields

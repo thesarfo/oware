@@ -13,3 +13,6 @@ stats.html
 .eslintcache
 
 *.tsbuildinfo
+
+# env file
+.env

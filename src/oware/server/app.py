@@ -51,6 +51,16 @@ CLIENT_COOKIE = "oware_client"
 CLIENT_SALT = os.environ.get("OWARE_CLIENT_SALT", "dev-salt-not-for-prod")
 DB_PATH = Path(os.environ.get("OWARE_DB", "artifacts/telemetry.db"))
 
+# Cross-site cookies (frontend on Vercel, API on Railway) require SameSite=None
+# + Secure. Default to that in prod; allow "lax" locally over http via env.
+COOKIE_SAMESITE = os.environ.get("OWARE_COOKIE_SAMESITE", "none").lower()
+COOKIE_SECURE = os.environ.get("OWARE_COOKIE_SECURE", "1") == "1"
+
+# Comma-separated list of allowed CORS origins. With credentials the browser
+# rejects "*", so we echo specific origins set by the operator.
+_RAW_ORIGINS = os.environ.get("OWARE_ALLOWED_ORIGINS", "*")
+ALLOWED_ORIGINS = [o.strip() for o in _RAW_ORIGINS.split(",") if o.strip()]
+
 
 def _hash_client(cookie: str | None) -> str | None:
   if cookie is None:
@@ -119,12 +129,18 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
   app = FastAPI(lifespan=lifespan, title="Oware Server")
-  app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-  )
+  cors_kwargs: dict[str, Any] = {
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+    "allow_credentials": True,
+  }
+  if ALLOWED_ORIGINS == ["*"]:
+    # Browsers refuse "*" with credentials. Match any origin via regex and let
+    # the middleware echo it back, which is credentials-compatible.
+    cors_kwargs["allow_origin_regex"] = ".*"
+  else:
+    cors_kwargs["allow_origins"] = ALLOWED_ORIGINS
+  app.add_middleware(CORSMiddleware, **cors_kwargs)
 
   @app.get("/healthz")
   async def healthz() -> dict[str, str]:
@@ -489,7 +505,9 @@ def create_app() -> FastAPI:
         CLIENT_COOKIE,
         secrets.token_urlsafe(16),
         max_age=60 * 60 * 24 * 365,
-        samesite="lax",
+        samesite=COOKIE_SAMESITE,  # type: ignore[arg-type]
+        secure=COOKIE_SECURE,
+        httponly=False,
       )
     agents_out = [
       {

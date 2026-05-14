@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiUrl } from "../lib/api";
 import type { AgentEntry } from "../lib/protocol";
 
 interface Props {
@@ -17,7 +18,7 @@ export function AgentPicker({ onStart }: Props) {
   const [minimaxDepth, setMinimaxDepth] = useState<string>("minimax_d4");
 
   useEffect(() => {
-    fetch("/agents")
+    fetch(apiUrl("/agents"), { credentials: "include" })
       .then((r) => r.json())
       .then((data: AgentEntry[]) => {
         setAgents(data);

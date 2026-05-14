@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { wsUrl } from "../lib/api";
 import type { AgentMoveMsg, GameOver, GameState, ServerMessage } from "../lib/protocol";
 
 export type ConnState = "connecting" | "open" | "closed";
@@ -24,10 +25,7 @@ export interface GameView {
   resign: () => void;
 }
 
-const WS_URL = (() => {
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}/play`;
-})();
+const WS_URL = wsUrl("/play");
 
 export function useGame(): GameView {
   const wsRef = useRef<WebSocket | null>(null);

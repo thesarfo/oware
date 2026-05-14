@@ -6,6 +6,7 @@ import { PageHeader } from "../components/PageHeader";
 import { useGame } from "../hooks/useGame";
 import { useHashRoute } from "../hooks/useHashRoute";
 import { useTheme } from "../hooks/useTheme";
+import { apiUrl } from "../lib/api";
 import { primeAudio } from "../lib/audio";
 import type { AgentEntry } from "../lib/protocol";
 
@@ -28,7 +29,7 @@ export function MatchPage() {
   const [speedMs, setSpeedMs] = useState(800);
 
   useEffect(() => {
-    fetch("/agents")
+    fetch(apiUrl("/agents"), { credentials: "include" })
       .then((r) => r.json())
       .then((data: AgentEntry[]) => {
         setAgents(data);
